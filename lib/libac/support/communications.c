@@ -941,6 +941,7 @@ int capture_ask_packet(int * caplen, int just_grab)
 #define AIRODUMP_NG_CSV_EXT "csv"
 #define KISMET_CSV_EXT "kismet.csv"
 #define KISMET_NETXML_EXT "kismet.netxml"
+#define WIFI_EXT "wifi"
 #define AIRODUMP_NG_GPS_EXT "gps"
 #define AIRODUMP_NG_CAP_EXT "cap"
 #define AIRODUMP_NG_LOG_CSV_EXT "log.csv"
@@ -951,7 +952,8 @@ static const char * f_ext[] = {AIRODUMP_NG_CSV_EXT,
 							   IVS2_EXTENSION,
 							   KISMET_CSV_EXT,
 							   KISMET_NETXML_EXT,
-							   AIRODUMP_NG_LOG_CSV_EXT};
+							   AIRODUMP_NG_LOG_CSV_EXT,
+                               WIFI_EXT};
 
 /* setup the output files */
 int dump_initialize_multi_format(char * prefix, int ivs_only)
@@ -1003,7 +1005,6 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 
 	if (opt.output_format_csv)
 	{
-		memset(ofn, 0, ofn_len);
 		snprintf(ofn,
 				 ofn_len,
 				 "%s-%02d.%s",
@@ -1088,7 +1089,6 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 	/* Create the output kismet.netxml file */
 	if (opt.output_format_kismet_netxml)
 	{
-		memset(ofn, 0, ofn_len);
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, KISMET_NETXML_EXT);
 
@@ -1101,6 +1101,20 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 			return (1);
 		}
 	}
+
+    if (opt.output_format_wifi_scanner)
+    {
+        snprintf(
+            ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, WIFI_EXT);
+
+        opt.f_txt = fopen(ofn, "wb+");
+        if (opt.f_txt == NULL)
+        {
+            perror("fopen failed");
+            fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            return 1;
+        }
+    }
 
 	/* create the output packet capture file */
 	if (opt.output_format_pcap)
