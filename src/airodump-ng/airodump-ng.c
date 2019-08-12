@@ -3497,10 +3497,12 @@ static void dump_print(int ws_row, int ws_col, int if_num)
         return;
     }
 
-
 	nlines = 2;
 
-	if (nlines >= ws_row) return;
+    if (nlines >= ws_row)
+    {
+        return;
+    }
 
 	if (lopt.do_sort_always)
 	{
@@ -5690,7 +5692,7 @@ static int init_cards(const char * cardstr, char * iface[], struct wif ** wi)
 	buf = buffer = strdup(cardstr);
 	if (buf == NULL)
 	{
-		return (-1);
+		return -1;
 	}
 
 	while ((if_count < MAX_CARDS)
@@ -5701,8 +5703,11 @@ static int init_cards(const char * cardstr, char * iface[], struct wif ** wi)
 		{
 			if (strcmp(iface[i], iface[if_count]) == 0) again = 1;
 		}
-		if (again) continue;
-		if (setup_card(iface[if_count], &(wi[if_count])) != 0)
+        if (again)
+        {
+            continue;
+        }
+		if (setup_card(iface[if_count], &wi[if_count]) != 0)
 		{
 			free(buf);
 			return (-1);
@@ -5711,7 +5716,8 @@ static int init_cards(const char * cardstr, char * iface[], struct wif ** wi)
 	}
 
 	free(buf);
-	return (if_count);
+
+	return if_count;
 }
 
 static int set_encryption_filter(const char * input)
@@ -7196,7 +7202,6 @@ int main(int argc, char * argv[])
 		{
 			break;
 		}
-
         check_monitor_process(&lopt);
 
 		if (time(NULL) - tt1 >= lopt.file_write_interval)
