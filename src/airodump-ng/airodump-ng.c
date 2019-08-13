@@ -326,7 +326,7 @@ static void resetSelection(void)
 	lopt.mark_cur_ap = 0;
 	lopt.do_pause = 0;
 	lopt.do_sort_always = 0;
-	memset(lopt.selected_bssid, '\x00', 6);
+    memset(lopt.selected_bssid, '\x00', sizeof lopt.selected_bssid);
 }
 
 static void color_off(void)
@@ -1411,7 +1411,7 @@ static int dump_add_packet(unsigned char * h80211,
 
 		ap_cur->ssid_length = 0;
 		ap_cur->essid_stored = 0;
-		memset(ap_cur->essid, 0, ESSID_LENGTH + 1);
+        memset(ap_cur->essid, 0, sizeof ap_cur->essid);
 		ap_cur->timestamp = 0;
 
 		ap_cur->decloak_detect = lopt.decloak;
@@ -1429,7 +1429,7 @@ static int dump_add_packet(unsigned char * h80211,
 
 		/* 802.11n and ac */
 		ap_cur->channel_width = CHANNEL_22MHZ; // 20MHz by default
-		memset(ap_cur->standard, 0, 3);
+        memset(ap_cur->standard, 0, sizeof ap_cur->standard);
 
 		ap_cur->n_channel.sec_channel = -1;
 		ap_cur->n_channel.short_gi_20 = 0;
@@ -1445,7 +1445,7 @@ static int dump_add_packet(unsigned char * h80211,
 		ap_cur->ac_channel.split_chan = 0;
 		ap_cur->ac_channel.mhz_160_chan = 0;
 		ap_cur->ac_channel.wave_2 = 0;
-		memset(ap_cur->ac_channel.mcs_index, 0, MAX_AC_MCS_INDEX);
+        memset(ap_cur->ac_channel.mcs_index, 0, sizeof ap_cur->ac_channel.mcs_index);
 	}
 
 	/* update the last time seen */
@@ -1586,7 +1586,8 @@ static int dump_add_packet(unsigned char * h80211,
 
 	if (st_cur == NULL)
 	{
-		if (!(st_cur = (struct ST_info *) calloc(1, sizeof(struct ST_info))))
+        st_cur = calloc(1, sizeof(*st_cur));
+        if (st_cur == NULL)
 		{
 			perror("calloc failed");
 			return (1);
@@ -1595,14 +1596,16 @@ static int dump_add_packet(unsigned char * h80211,
 		/* if mac is listed as unknown, remove it */
 		remove_namac(stmac);
 
-		memset(st_cur, 0, sizeof(struct ST_info));
-
-		if (lopt.st_1st == NULL)
+        if (lopt.st_1st == NULL)
+        {
 			lopt.st_1st = st_cur;
-		else
+        }
+        else
+        {
 			st_prv->next = st_cur;
+        }
 
-		memcpy(st_cur->stmac, stmac, 6);
+        memcpy(st_cur->stmac, stmac, sizeof st_cur->stmac);
 
 		if (st_cur->manuf == NULL)
 		{
@@ -1737,18 +1740,24 @@ skip_station:
 			{
 				n = MIN(ESSID_LENGTH, p[1]);
 
-				for (i = 0; i < n; i++)
+                for (i = 0; i < n; i++)
+                {
 					if (p[2 + i] > 0 && p[2 + i] < ' ') goto skip_probe;
+                }
 
 				/* got a valid ASCII probed ESSID, check if it's
 				   already in the ring buffer */
 
-				for (i = 0; i < NB_PRB; i++)
-					if (memcmp(st_cur->probes[i], p + 2, n) == 0)
-						goto skip_probe;
+                for (i = 0; i < NB_PRB; i++)
+                {
+                    if (memcmp(st_cur->probes[i], p + 2, n) == 0)
+                    {
+                        goto skip_probe;
+                    }
+                }
 
 				st_cur->probe_index = (st_cur->probe_index + 1) % NB_PRB;
-				memset(st_cur->probes[st_cur->probe_index], 0, 256);
+                memset(st_cur->probes[st_cur->probe_index], 0, sizeof st_cur->probes[st_cur->probe_index]);
 				memcpy(
 					st_cur->probes[st_cur->probe_index], p + 2, n); // twice?!
 				st_cur->ssid_length[st_cur->probe_index] = (int) n;
@@ -1804,25 +1813,24 @@ skip_probe:
 				/* found a non-cloaked ESSID */
 				n = MIN(ESSID_LENGTH, p[1]);
 
-				memset(ap_cur->essid, 0, ESSID_LENGTH + 1);
+                memset(ap_cur->essid, 0, sizeof ap_cur->essid);
 				memcpy(ap_cur->essid, p + 2, n);
 
 				if (opt.f_ivs != NULL && !ap_cur->essid_stored)
 				{
-					memset(&ivs2, '\x00', sizeof(struct ivs2_pkthdr));
+                    memset(&ivs2, '\x00', sizeof ivs2);
 					ivs2.flags |= IVS2_ESSID;
 					ivs2.len += ap_cur->ssid_length;
 
-					if (memcmp(lopt.prev_bssid, ap_cur->bssid, 6) != 0)
+                    if (memcmp(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid) != 0)
 					{
 						ivs2.flags |= IVS2_BSSID;
 						ivs2.len += 6;
-						memcpy(lopt.prev_bssid, ap_cur->bssid, 6);
+                        memcpy(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid);
 					}
 
 					/* write header */
-					if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), opt.f_ivs)
-						!= (size_t) sizeof(struct ivs2_pkthdr))
+                    if (fwrite(&ivs2, 1, sizeof ivs2, opt.f_ivs) != sizeof ivs2)
 					{
 						perror("fwrite(IV header) failed");
 						return (1);
@@ -1831,8 +1839,8 @@ skip_probe:
 					/* write BSSID */
 					if (ivs2.flags & IVS2_BSSID)
 					{
-						if (fwrite(ap_cur->bssid, 1, 6, opt.f_ivs)
-							!= (size_t) 6)
+                        if (fwrite(ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
+                            != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
 							return (1);
@@ -2385,20 +2393,19 @@ skip_probe:
 
 				if (opt.f_ivs != NULL && !ap_cur->essid_stored)
 				{
-					memset(&ivs2, '\x00', sizeof(struct ivs2_pkthdr));
+                    memset(&ivs2, '\x00', sizeof ivs2);
 					ivs2.flags |= IVS2_ESSID;
 					ivs2.len += ap_cur->ssid_length;
 
-					if (memcmp(lopt.prev_bssid, ap_cur->bssid, 6) != 0)
+                    if (memcmp(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid) != 0)
 					{
 						ivs2.flags |= IVS2_BSSID;
 						ivs2.len += 6;
-						memcpy(lopt.prev_bssid, ap_cur->bssid, 6);
+                        memcpy(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid);
 					}
 
 					/* write header */
-					if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), opt.f_ivs)
-						!= (size_t) sizeof(struct ivs2_pkthdr))
+                    if (fwrite(&ivs2, 1, sizeof ivs2, opt.f_ivs) != sizeof ivs2)
 					{
 						perror("fwrite(IV header) failed");
 						return (1);
@@ -2407,8 +2414,8 @@ skip_probe:
 					/* write BSSID */
 					if (ivs2.flags & IVS2_BSSID)
 					{
-						if (fwrite(ap_cur->bssid, 1, 6, opt.f_ivs)
-							!= (size_t) 6)
+                        if (fwrite(ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
+                            != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
 							return (1);
@@ -2565,7 +2572,7 @@ skip_probe:
 
 				if (opt.f_ivs != NULL)
 				{
-					memset(&ivs2, '\x00', sizeof(struct ivs2_pkthdr));
+                    memset(&ivs2, '\x00', sizeof ivs2);
 					ivs2.flags = 0;
 					ivs2.len = 0;
 
@@ -2840,21 +2847,20 @@ skip_probe:
 
 				if (opt.f_ivs != NULL)
 				{
-					memset(&ivs2, '\x00', sizeof(struct ivs2_pkthdr));
+                    memset(&ivs2, '\x00', sizeof ivs2);
 					ivs2.flags = 0;
 
 					ivs2.len = sizeof(struct WPA_hdsk);
 					ivs2.flags |= IVS2_WPA;
 
-					if (memcmp(lopt.prev_bssid, ap_cur->bssid, 6) != 0)
+                    if (memcmp(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid) != 0)
 					{
 						ivs2.flags |= IVS2_BSSID;
 						ivs2.len += 6;
-						memcpy(lopt.prev_bssid, ap_cur->bssid, 6);
+                        memcpy(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid);
 					}
 
-					if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), opt.f_ivs)
-						!= (size_t) sizeof(struct ivs2_pkthdr))
+                    if (fwrite(&ivs2, 1, sizeof ivs2, opt.f_ivs) != sizeof ivs2)
 					{
 						perror("fwrite(IV header) failed");
 						return (EXIT_FAILURE);
@@ -2862,8 +2868,8 @@ skip_probe:
 
 					if (ivs2.flags & IVS2_BSSID)
 					{
-						if (fwrite(ap_cur->bssid, 1, 6, opt.f_ivs)
-							!= (size_t) 6)
+                        if (fwrite(ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
+                            != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
 							return (EXIT_FAILURE);
@@ -2871,11 +2877,11 @@ skip_probe:
 						ivs2.len -= 6;
 					}
 
-					if (fwrite(&(st_cur->wpa),
+					if (fwrite(&st_cur->wpa,
 							   1,
-							   sizeof(struct WPA_hdsk),
+                               sizeof st_cur->wpa,
 							   opt.f_ivs)
-						!= (size_t) sizeof(struct WPA_hdsk))
+                        != sizeof st_cur->wpa)
 					{
 						perror("fwrite(IV wpa_hdsk) failed");
 						return (EXIT_FAILURE);
@@ -3421,7 +3427,7 @@ static char * parse_timestamp(unsigned long long timestamp)
 	unsigned char days, hours, mins, secs;
 
 	// Initialize array
-	memset(s, 0, TSTP_LEN);
+	memset(s, 0, sizeof s);
 
 	// Calculate days, hours, mins and secs
 	days = (uint8_t)(timestamp / TSTP_DAY);
@@ -3544,12 +3550,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 	 *  and current time
 	 */
 
-	memset(strbuf, '\0', sizeof(strbuf));
-
-    if (!opt.output_format_wifi_scanner)
-    {
-        moveto(1, 2);
-    }
+    moveto(1, 2);
 	textcolor_normal();
 	textcolor_fg(TEXT_WHITE);
 
@@ -3573,7 +3574,8 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			strlcat(strbuf, buffer, sizeof(strbuf));
 		}
 	}
-	memset(buffer, '\0', sizeof(buffer));
+
+    buffer[0] = '\0'; 
 
 	if (lopt.gps_loc[0] || (opt.usegpsd))
 	{
@@ -3681,7 +3683,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			if (ws_col > (columns_ap - 4))
 			{
 				memset(strbuf + strlen(strbuf),
-					   32,
+					   ' ',
 					   sizeof(strbuf) - strlen(strbuf) - 1);
 				snprintf(strbuf + columns_ap + lopt.maxsize_wps_seen - 5,
 						 8,
@@ -3690,7 +3692,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 				if (lopt.show_manufacturer)
 				{
 					memset(strbuf + columns_ap + lopt.maxsize_wps_seen + 1,
-						   32,
+						   ' ',
 						   sizeof(strbuf) - columns_ap - lopt.maxsize_wps_seen
 							   - 1);
 					snprintf(strbuf + columns_ap + lopt.maxsize_wps_seen
@@ -3709,7 +3711,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			if (lopt.show_manufacturer && (ws_col > (columns_ap - 4)))
 			{
 				// write spaces (32).
-				memset(strbuf + columns_ap, 32, lopt.maxsize_essid_seen - 5);
+				memset(strbuf + columns_ap, ' ', lopt.maxsize_essid_seen - 5);
 				snprintf(strbuf + columns_ap + lopt.maxsize_essid_seen - 7,
 						 15,
 						 "%s",
@@ -3796,8 +3798,6 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			nlines++;
 
 			if (nlines > (ws_row - 1)) return;
-
-			memset(strbuf, '\0', sizeof(strbuf));
 
 			snprintf(strbuf,
 					 sizeof(strbuf),
@@ -3964,7 +3964,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 				textcolor_fg(ap_cur->marked_color);
 			}
 
-			memset(strbuf + len, 32, sizeof(strbuf) - len - 1);
+			memset(strbuf + len, ' ', sizeof(strbuf) - len - 1);
 
 			if (ws_col > (columns_ap - 4))
 			{
@@ -3988,7 +3988,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 							if (ap_cur->wps.meth) // WPS Config Methods
 							{
 								char tbuf[64];
-								memset(tbuf, '\0', sizeof(tbuf));
+								tbuf[0] = '\0';
 								int sep = 0;
 #define T(bit, name)                                                           \
 	do                                                                         \
@@ -4028,7 +4028,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 					else
 					{
 						// pad output
-						memset(strbuf + len, 32, sizeof(strbuf) - len - 1);
+						memset(strbuf + len, ' ', sizeof(strbuf) - len - 1);
 						len += lopt.maxsize_wps_seen - (len - wps_len);
 						strbuf[len] = '\0';
 					}
@@ -4074,7 +4074,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 					else
 					{
 						// pad output
-						memset(strbuf + len, 32, sizeof(strbuf) - len - 1);
+						memset(strbuf + len, ' ', sizeof(strbuf) - len - 1);
 						len += lopt.maxsize_essid_seen - (len - essid_len);
 						strbuf[len] = '\0';
 					}
@@ -4098,7 +4098,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			if (len_remaining > 0)
 			{
 				ALLEGE((size_t) len + len_remaining <= sizeof(strbuf));
-				memset(strbuf + len, 32, len_remaining);
+				memset(strbuf + len, ' ', len_remaining);
 			}
 
 			strbuf[ws_col - 1] = '\0';
@@ -4249,7 +4249,6 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 						if (n >= (int) sizeof(ssid_list)) break;
 					}
 
-					memset(strbuf, 0, sizeof(strbuf));
 					snprintf(strbuf, sizeof(strbuf) - 1, "%-256s", ssid_list)
 							< 0
 						? abort()
@@ -4632,9 +4631,11 @@ static THREAD_ENTRY(gps_tracker_thread)
 		gpsd_tried_connection = 1;
 
 		time_t updateTime = time(NULL);
-		memset(line, 0, 1537);
-		memset(buffer, 0, 1537);
-		memset(data, 0, 1537);
+
+        /* FIXME - Are these memsets necessary? */
+		memset(line, 0, sizeof line);
+		memset(buffer, 0, sizeof buffer);
+		memset(data, 0, sizeof data);
 
 		/* attempt to connect to localhost, port 2947 */
 		pos = 0;
@@ -4645,7 +4646,7 @@ static THREAD_ENTRY(gps_tracker_thread)
 		gpsd_sock = socket(AF_INET, SOCK_STREAM, 0);
 		if (gpsd_sock < 0) continue;
 
-		memset(&gpsd_addr, 0, sizeof(struct sockaddr_in));
+        memset(&gpsd_addr, 0, sizeof gpsd_addr);
 		gpsd_addr.sin_family = AF_INET;
 		gpsd_addr.sin_port = htons(2947);
 		gpsd_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
@@ -4685,9 +4686,8 @@ static THREAD_ENTRY(gps_tracker_thread)
 				}
 
 				// Send ?WATCH={"json":true};
-				memset(line, 0, sizeof(line));
 				strcpy(line, "?WATCH={\"json\":true};\n");
-				if (send(gpsd_sock, line, 22, 0) != 22) continue;
+				if (send(gpsd_sock, line, strlen(line), 0) != strlen(line)) continue;
 			}
 		}
 		else if (is_json < 0)
@@ -4719,6 +4719,9 @@ static THREAD_ENTRY(gps_tracker_thread)
 			}
 
 			// Record ALL GPS data from GPSD
+            /* FIXME: Why does output_format_wifi_scanner need to be 
+             * checked? 
+             */
             if (opt.record_data && !opt.output_format_wifi_scanner)
 			{
 				fputs(line, opt.f_gps);
@@ -4861,9 +4864,6 @@ static THREAD_ENTRY(gps_tracker_thread)
 			else
 			{
 				// Else read a NON JSON format
-
-				memset(line, 0, sizeof(line));
-
 				snprintf(line, sizeof(line) - 1, "PVTAD\r\n");
 				if (send(gpsd_sock, line, 7, 0) != 7)
 				{
@@ -6453,14 +6453,16 @@ int main(int argc, char * argv[])
 		lopt.channel[i] = 0;
 	}
 
-	memset(opt.f_bssid, '\x00', 6);
-	memset(opt.f_netmask, '\x00', 6);
-	memset(lopt.wpa_bssid, '\x00', 6);
+    memset(opt.f_bssid, '\x00', sizeof opt.f_bssid);
+    memset(opt.f_netmask, '\x00', sizeof opt.f_netmask);
+    memset(lopt.wpa_bssid, '\x00', sizeof lopt.wpa_bssid);
 
 	/* check the arguments */
 
-	for (i = 0; long_options[i].name != NULL; i++)
-		;
+    for (i = 0; long_options[i].name != NULL; i++)
+    {
+		; /* Do nothing. */
+    }
 	num_opts = i;
 
 	for (i = 0; i < argc; i++) // go through all arguments
@@ -7238,9 +7240,13 @@ int main(int argc, char * argv[])
 
 	/* open or create the output files */
 
-	if (opt.record_data)
-		if (dump_initialize_multi_format(lopt.dump_prefix, ivs_only))
-			return (EXIT_FAILURE);
+    if (opt.record_data)
+    {
+        if (dump_initialize_multi_format(lopt.dump_prefix, ivs_only))
+        {
+            return (EXIT_FAILURE);
+        }
+    }
 
     int const pipe_result = pipe(lopt.signal_event_pipe);
     IGNORE_NZ(pipe_result);
@@ -7334,7 +7340,7 @@ int main(int argc, char * argv[])
 
 		if (time(NULL) - tt1 >= lopt.file_write_interval)
 		{
-			/* update the text output files */
+			/* update the output files */
 
 			tt1 = time(NULL);
 
@@ -7343,20 +7349,20 @@ int main(int argc, char * argv[])
 				dump_write_csv(lopt.ap_1st, lopt.st_1st, lopt.f_encrypt);
             }
 
-            if (opt.output_format_kismet_csv)
-            {
-				dump_write_kismet_csv(lopt.ap_1st, lopt.st_1st, lopt.f_encrypt);
-            }
-
             if (opt.output_format_wifi_scanner)
             {
-                dump_write_wifi_scanner(lopt.ap_1st, 
-                                        lopt.st_1st, 
-                                        lopt.f_encrypt, 
-                                        lopt.filter_seconds, 
+                dump_write_wifi_scanner(lopt.ap_1st,
+                                        lopt.st_1st,
+                                        lopt.f_encrypt,
+                                        lopt.filter_seconds,
                                         lopt.file_reset_seconds,
                                         lopt.sys_name,
                                         lopt.loc_name);
+            }
+
+            if (opt.output_format_kismet_csv)
+            {
+				dump_write_kismet_csv(lopt.ap_1st, lopt.st_1st, lopt.f_encrypt);
             }
 
 			if (opt.output_format_kismet_netxml)

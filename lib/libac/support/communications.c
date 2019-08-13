@@ -882,7 +882,6 @@ int capture_ask_packet(int * caplen, int just_grab)
 
 		lt = localtime((const time_t *) &tv.tv_sec);
 
-		memset(strbuf, 0, sizeof(strbuf));
 		snprintf(strbuf,
 				 sizeof(strbuf) - 1,
 				 "replay_src-%02d%02d-%02d%02d%02d.cap",
@@ -894,7 +893,8 @@ int capture_ask_packet(int * caplen, int just_grab)
 
 		printf("Saving chosen packet in %s\n", strbuf);
 
-		if ((f_cap_out = fopen(strbuf, "wb+")) == NULL)
+        f_cap_out = fopen(strbuf, "wb+");
+        if (f_cap_out == NULL)
 		{
 			perror("fopen failed");
 			return (EXIT_FAILURE);
@@ -946,7 +946,7 @@ int capture_ask_packet(int * caplen, int just_grab)
 #define AIRODUMP_NG_CAP_EXT "cap"
 #define AIRODUMP_NG_LOG_CSV_EXT "log.csv"
 
-static const char * f_ext[] = {AIRODUMP_NG_CSV_EXT,
+static const char * const f_ext[] = {AIRODUMP_NG_CSV_EXT,
 							   AIRODUMP_NG_GPS_EXT,
 							   AIRODUMP_NG_CAP_EXT,
 							   IVS2_EXTENSION,
@@ -955,51 +955,75 @@ static const char * f_ext[] = {AIRODUMP_NG_CSV_EXT,
 							   AIRODUMP_NG_LOG_CSV_EXT,
                                WIFI_EXT};
 
+static int find_first_free_file_index(char const * const prefix)
+{
+    size_t i;
+    int f_index = 1;
+    char * ofn = NULL;
+    size_t ofn_len;
+    size_t const ADDED_LENGTH = 17; /* FIXME: Work out the required length from 
+                                     *  the extensions etc
+                                     */
+
+    /* Create a buffer of the length of the prefix + '-' + 2 numbers + '.'
+       + longest extension ("kismet.netxml") + terminating 0. */
+    ofn_len = strlen(prefix)+ ADDED_LENGTH + 1;
+    ofn = malloc(ofn_len);
+    ALLEGE(ofn != NULL); 
+
+
+    /* Make sure no file with the same name & all possible file extensions. 
+     * If there is an existing file, bump the index value and try 
+     * again until an index is found where there are no existing 
+     * files with any of the specified extensions. 
+     */
+    do
+    {
+        for (i = 0; i < ArrayCount(f_ext); i++)
+        {
+            snprintf(ofn, ofn_len, "%s-%02d.%s", prefix, f_index, f_ext[i]);
+
+            FILE * const f = fopen(ofn, "rb+");
+            if (f != NULL)
+            {
+                fclose(f);
+                f_index++;
+                break;
+            }
+        }
+    }
+    /* If we did all extensions then no file with that name or extension exist
+       so we can use that number */
+    while (i < ArrayCount(f_ext)); 
+
+    free(ofn);
+
+    return f_index;
+}
+
 /* setup the output files */
 int dump_initialize_multi_format(char * prefix, int ivs_only)
 {
 	REQUIRE(prefix != NULL);
 	REQUIRE(strlen(prefix) > 0);
 
-	const size_t ADDED_LENGTH = 17;
-	size_t i;
-	size_t ofn_len;
-	FILE * f;
-	char * ofn = NULL;
+    char * ofn;
+    size_t ofn_len;
+    size_t const ADDED_LENGTH = 17; /* FIXME: Work out the required length from 
+                                     *  the extensions etc
+                                     */
+
+    /* Create a buffer of the length of the prefix + '-' + 2 numbers + '.'
+       + longest extension ("kismet.netxml") + terminating 0. */
+    ofn_len = strlen(prefix)+ ADDED_LENGTH + 1;
+    ofn = malloc(ofn_len);
+    ALLEGE(ofn != NULL); 
 
 	/* If you only want to see what happening, send all data to /dev/null */
 
-	/* Create a buffer of the length of the prefix + '-' + 2 numbers + '.'
-	   + longest extension ("kismet.netxml") + terminating 0. */
-	ofn_len = strlen(prefix) + ADDED_LENGTH + 1;
-	ofn = (char *) calloc(1, ofn_len);
-	ALLEGE(ofn != NULL);
-
-	opt.f_index = 1;
-
-	/* Make sure no file with the same name & all possible file extensions. */
-	do
-	{
-		for (i = 0; i < ArrayCount(f_ext); i++)
-		{
-			memset(ofn, 0, ofn_len);
-			snprintf(ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, f_ext[i]);
-
-			if ((f = fopen(ofn, "rb+")) != NULL)
-			{
-				fclose(f);
-				opt.f_index++;
-				break;
-			}
-		}
-	}
-	/* If we did all extensions then no file with that name or extension exist
-	   so we can use that number */
-	while (i < ArrayCount(f_ext));
-
-	opt.prefix = (char *) calloc(1, strlen(prefix) + 1);
-	ALLEGE(opt.prefix != NULL);
-	memcpy(opt.prefix, prefix, strlen(prefix) + 1);
+    opt.f_index = find_first_free_file_index(prefix);
+    opt.prefix = strdup(prefix);
+    ALLEGE(opt.prefix != NULL); 
 
 	/* create the output CSV file */
 
@@ -1012,20 +1036,20 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 				 opt.f_index,
 				 AIRODUMP_NG_CSV_EXT);
 
-		if ((opt.f_txt = fopen(ofn, "wb+")) == NULL)
+        opt.f_txt = fopen(ofn, "wb+");
+        if (opt.f_txt == NULL)
 		{
 			perror("fopen failed");
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
 			free(ofn);
 
-			return (1);
+            return (1);
 		}
 	}
 
 	/* create the output for a rolling log CSV file */
 	if (opt.output_format_log_csv)
 	{
-		memset(ofn, 0, ofn_len);
 		snprintf(ofn,
 				 ofn_len,
 				 "%s-%02d.%s",
@@ -1033,7 +1057,8 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 				 opt.f_index,
 				 AIRODUMP_NG_LOG_CSV_EXT);
 
-		if ((opt.f_logcsv = fopen(ofn, "wb+")) == NULL)
+        opt.f_logcsv = fopen(ofn, "wb+");
+        if (opt.f_logcsv == NULL)
 		{
 			perror("fopen failed");
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -1055,7 +1080,8 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, KISMET_CSV_EXT);
 
-		if ((opt.f_kis = fopen(ofn, "wb+")) == NULL)
+        opt.f_kis = fopen(ofn, "wb+");
+        if (opt.f_kis == NULL)
 		{
 			perror("fopen failed");
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -1076,7 +1102,8 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 				 opt.f_index,
 				 AIRODUMP_NG_GPS_EXT);
 
-		if ((opt.f_gps = fopen(ofn, "wb+")) == NULL)
+        opt.f_gps = fopen(ofn, "wb+");
+        if (opt.f_gps == NULL)
 		{
 			perror("fopen failed");
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -1092,7 +1119,8 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, KISMET_NETXML_EXT);
 
-		if ((opt.f_kis_xml = fopen(ofn, "wb+")) == NULL)
+        opt.f_kis_xml = fopen(ofn, "wb+");
+		if (opt.f_kis_xml == NULL)
 		{
 			perror("fopen failed");
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -1112,6 +1140,8 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
         {
             perror("fopen failed");
             fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            free(ofn);
+
             return 1;
         }
         opt.wifi_scanner_filename = strdup(ofn);
@@ -1130,7 +1160,8 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 				 opt.f_index,
 				 AIRODUMP_NG_CAP_EXT);
 
-		if ((opt.f_cap = fopen(ofn, "wb+")) == NULL)
+        opt.f_cap = fopen(ofn, "wb+");
+        if (opt.f_cap == NULL)
 		{
 			perror("fopen failed");
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -1139,9 +1170,8 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 			return (1);
 		}
 
-		opt.f_cap_name = (char *) calloc(1, strlen(ofn) + 1);
+        opt.f_cap_name = strdup(ofn); 
 		ALLEGE(opt.f_cap_name != NULL);
-		memcpy(opt.f_cap_name, ofn, strlen(ofn) + 1);
 
 		pfh.magic = TCPDUMP_MAGIC;
 		pfh.version_major = PCAP_VERSION_MAJOR;
@@ -1177,7 +1207,8 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, IVS2_EXTENSION);
 
-		if ((opt.f_ivs = fopen(ofn, "wb+")) == NULL)
+        opt.f_ivs = fopen(ofn, "wb+");
+        if (opt.f_ivs == NULL)
 		{
 			perror("fopen failed");
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -1187,15 +1218,16 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 		}
 		free(ofn);
 
-		if (fwrite(IVS2_MAGIC, 1, 4, opt.f_ivs) != (size_t) 4)
+        char const ivs2_magic[4] = IVS2_MAGIC;
+
+        if (fwrite(ivs2_magic, 1, sizeof ivs2_magic, opt.f_ivs) != sizeof ivs2_magic)
 		{
 			perror("fwrite(IVs file MAGIC) failed");
 
 			return (1);
 		}
 
-		if (fwrite(&fivs2, 1, sizeof(struct ivs2_filehdr), opt.f_ivs)
-			!= (size_t) sizeof(struct ivs2_filehdr))
+        if (fwrite(&fivs2, 1, sizeof(fivs2), opt.f_ivs) != sizeof(fivs2))
 		{
 			perror("fwrite(IVs file header) failed");
 
