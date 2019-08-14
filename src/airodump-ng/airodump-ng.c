@@ -172,7 +172,8 @@ static struct local_options
     struct NA_info * na_1st;
     struct oui * manufacturer_list;
 
-	unsigned char prev_bssid[6];
+    mac_address prev_bssid;
+
 	char ** f_essid;
 	int f_essid_count;
 #ifdef HAVE_PCRE
@@ -372,7 +373,7 @@ static void color_on(void)
 		}
 
 		// Don't filter unassociated clients by ESSID
-		if (memcmp(ap_cur->bssid, BROADCAST, 6) != 0
+		if (!MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid)
 			&& is_filtered_essid(ap_cur->essid))
 		{
 			ap_cur = ap_cur->prev;
@@ -390,21 +391,29 @@ static void color_on(void)
 				continue;
 			}
 
-			if (!memcmp(ap_cur->bssid, BROADCAST, 6) && lopt.asso_client)
+			if (MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid) 
+                && lopt.asso_client)
 			{
 				st_cur = st_cur->prev;
 				continue;
 			}
 
-			if (color > TEXT_MAX_COLOR) color++;
+            if (color > TEXT_MAX_COLOR)
+            {
+                color++;
+            }
 
 			if (!ap_cur->marked)
 			{
 				ap_cur->marked = 1;
-				if (!memcmp(ap_cur->bssid, BROADCAST, 6))
+                if (MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
+                {
 					ap_cur->marked_color = 1;
-				else
+                }
+                else
+                {
 					ap_cur->marked_color = color++;
+                }
 			}
 			else
 				ap_cur->marked_color = 1;
@@ -861,16 +870,16 @@ static int is_filtered_netmask(const uint8_t * bssid)
 {
 	REQUIRE(bssid != NULL);
 
-    unsigned char mac1[MAC_ADDRESS_SIZE];
-    unsigned char mac2[MAC_ADDRESS_SIZE];
+    unsigned char mac1[MAC_ADDRESS_LEN];
+    unsigned char mac2[MAC_ADDRESS_LEN];
 
-    for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++)
+    for (size_t i = 0; i < MAC_ADDRESS_LEN; i++)
 	{
 		mac1[i] = bssid[i] & opt.f_netmask[i];
 		mac2[i] = opt.f_bssid[i] & opt.f_netmask[i];
 	}
 
-    bool const is_filtered = memcmp(mac1, mac2, MAC_ADDRESS_SIZE) != 0;
+    bool const is_filtered = memcmp(mac1, mac2, MAC_ADDRESS_LEN) != 0;
 
 	return is_filtered;
 }
@@ -1335,7 +1344,10 @@ static int dump_add_packet(unsigned char * h80211,
 
 	while (ap_cur != NULL)
 	{
-		if (!memcmp(ap_cur->bssid, bssid, 6)) break;
+        if (MAC_ADDRESS_EQUAL(&ap_cur->bssid, (mac_address *)bssid))
+        {
+            break;
+        }
 
 		ap_prv = ap_cur;
 		ap_cur = ap_cur->next;
@@ -1345,7 +1357,8 @@ static int dump_add_packet(unsigned char * h80211,
 
 	if (ap_cur == NULL)
 	{
-		if (!(ap_cur = (struct AP_info *) calloc(1, sizeof(struct AP_info))))
+        ap_cur = calloc(1, sizeof(*ap_cur));
+		if (ap_cur == NULL)
 		{
 			perror("calloc failed");
 			return (1);
@@ -1354,16 +1367,20 @@ static int dump_add_packet(unsigned char * h80211,
 		/* if mac is listed as unknown, remove it */
 		remove_namac(bssid);
 
-		if (lopt.ap_1st == NULL)
+        if (lopt.ap_1st == NULL)
+        {
 			lopt.ap_1st = ap_cur;
-		else if (ap_prv != NULL)
+        }
+        else if (ap_prv != NULL)
+        {
 			ap_prv->next = ap_cur;
+        }
 
-		memcpy(ap_cur->bssid, bssid, 6);
+		MAC_ADDRESS_COPY(&ap_cur->bssid, (mac_address *)bssid);
 		if (ap_cur->manuf == NULL)
 		{
 			ap_cur->manuf = get_manufacturer(
-				ap_cur->bssid[0], ap_cur->bssid[1], ap_cur->bssid[2]);
+				ap_cur->bssid.addr[0], ap_cur->bssid.addr[1], ap_cur->bssid.addr[2]);
 		}
 
 		ap_cur->nb_pkt = 0;
@@ -1656,7 +1673,7 @@ static int dump_add_packet(unsigned char * h80211,
 		lopt.st_end = st_cur;
 	}
 
-    if (st_cur->base == NULL || memcmp(ap_cur->bssid, BROADCAST, 6) != 0)
+    if (st_cur->base == NULL || !MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
     {
 		st_cur->base = ap_cur;
     }
@@ -1822,11 +1839,11 @@ skip_probe:
 					ivs2.flags |= IVS2_ESSID;
 					ivs2.len += ap_cur->ssid_length;
 
-                    if (memcmp(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid) != 0)
+                    if (!MAC_ADDRESS_EQUAL(&lopt.prev_bssid, &ap_cur->bssid))
 					{
 						ivs2.flags |= IVS2_BSSID;
-						ivs2.len += 6;
-                        memcpy(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid);
+                        ivs2.len += MAC_ADDRESS_LEN;
+                        MAC_ADDRESS_COPY(&lopt.prev_bssid, &ap_cur->bssid);
 					}
 
 					/* write header */
@@ -1839,7 +1856,7 @@ skip_probe:
 					/* write BSSID */
 					if (ivs2.flags & IVS2_BSSID)
 					{
-                        if (fwrite(ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
+                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
                             != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
@@ -2397,11 +2414,11 @@ skip_probe:
 					ivs2.flags |= IVS2_ESSID;
 					ivs2.len += ap_cur->ssid_length;
 
-                    if (memcmp(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid) != 0)
+                    if (!MAC_ADDRESS_EQUAL(&lopt.prev_bssid, &ap_cur->bssid))
 					{
 						ivs2.flags |= IVS2_BSSID;
-						ivs2.len += 6;
-                        memcpy(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid);
+                        ivs2.len += MAC_ADDRESS_LEN;
+                        MAC_ADDRESS_COPY(&lopt.prev_bssid, &ap_cur->bssid);
 					}
 
 					/* write header */
@@ -2414,7 +2431,7 @@ skip_probe:
 					/* write BSSID */
 					if (ivs2.flags & IVS2_BSSID)
 					{
-                        if (fwrite(ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
+                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
                             != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
@@ -2503,12 +2520,12 @@ skip_probe:
 				snprintf(lopt.message,
 						 sizeof(lopt.message),
 						 "][ Decloak: %02X:%02X:%02X:%02X:%02X:%02X ",
-						 ap_cur->bssid[0],
-						 ap_cur->bssid[1],
-						 ap_cur->bssid[2],
-						 ap_cur->bssid[3],
-						 ap_cur->bssid[4],
-						 ap_cur->bssid[5]);
+						 ap_cur->bssid.addr[0],
+                         ap_cur->bssid.addr[1],
+                         ap_cur->bssid.addr[2],
+                         ap_cur->bssid.addr[3],
+                         ap_cur->bssid.addr[4],
+                         ap_cur->bssid.addr[5]);
 			}
 		}
 
@@ -2620,15 +2637,14 @@ skip_probe:
 						// clear is now the keystream
 					}
 
-					if (memcmp(lopt.prev_bssid, ap_cur->bssid, 6) != 0)
+                    if (!MAC_ADDRESS_EQUAL(&lopt.prev_bssid, &ap_cur->bssid))
 					{
 						ivs2.flags |= IVS2_BSSID;
-						ivs2.len += 6;
-						memcpy(lopt.prev_bssid, ap_cur->bssid, 6);
+                        ivs2.len += MAC_ADDRESS_LEN;
+                        MAC_ADDRESS_COPY(&lopt.prev_bssid, &ap_cur->bssid);
 					}
 
-					if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), opt.f_ivs)
-						!= (size_t) sizeof(struct ivs2_pkthdr))
+                    if (fwrite(&ivs2, 1, sizeof ivs2, opt.f_ivs) != sizeof ivs2)
 					{
 						perror("fwrite(IV header) failed");
 						return (EXIT_FAILURE);
@@ -2636,13 +2652,13 @@ skip_probe:
 
 					if (ivs2.flags & IVS2_BSSID)
 					{
-						if (fwrite(ap_cur->bssid, 1, 6, opt.f_ivs)
-							!= (size_t) 6)
+                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
+                            != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
 							return (1);
 						}
-						ivs2.len -= 6;
+                        ivs2.len -= sizeof ap_cur->bssid;
 					}
 
 					if (fwrite(h80211 + z, 1, 4, opt.f_ivs) != (size_t) 4)
@@ -2681,12 +2697,12 @@ skip_probe:
 					snprintf(lopt.message,
 							 sizeof(lopt.message),
 							 "][ WEP Cloaking: %02X:%02X:%02X:%02X:%02X:%02X ",
-							 ap_cur->bssid[0],
-							 ap_cur->bssid[1],
-							 ap_cur->bssid[2],
-							 ap_cur->bssid[3],
-							 ap_cur->bssid[4],
-							 ap_cur->bssid[5]);
+                             ap_cur->bssid.addr[0],
+                             ap_cur->bssid.addr[1],
+                             ap_cur->bssid.addr[2],
+                             ap_cur->bssid.addr[3],
+                             ap_cur->bssid.addr[4],
+                             ap_cur->bssid.addr[5]);
 				}
 			}
 		}
@@ -2740,7 +2756,7 @@ skip_probe:
 							st_cur->wpa.keyver = (uint8_t)(h80211[z + 6] & 7);
 
 							memcpy(st_cur->wpa.stmac, st_cur->stmac, 6);
-							memcpy(lopt.wpa_bssid, ap_cur->bssid, 6);
+							MAC_ADDRESS_COPY((mac_address *)lopt.wpa_bssid, &ap_cur->bssid);
 							snprintf(lopt.message,
 									 sizeof(lopt.message),
 									 "][ PMKID found: "
@@ -2834,7 +2850,7 @@ skip_probe:
 			if (st_cur->wpa.state == 7 && !is_filtered_essid(ap_cur->essid))
 			{
 				memcpy(st_cur->wpa.stmac, st_cur->stmac, 6);
-				memcpy(lopt.wpa_bssid, ap_cur->bssid, 6);
+				MAC_ADDRESS_COPY((mac_address *)lopt.wpa_bssid, &ap_cur->bssid);
 				snprintf(lopt.message,
 						 sizeof(lopt.message),
 						 "][ WPA handshake: %02X:%02X:%02X:%02X:%02X:%02X ",
@@ -2853,11 +2869,11 @@ skip_probe:
 					ivs2.len = sizeof(struct WPA_hdsk);
 					ivs2.flags |= IVS2_WPA;
 
-                    if (memcmp(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid) != 0)
+                    if (!MAC_ADDRESS_EQUAL(&lopt.prev_bssid, &ap_cur->bssid))
 					{
 						ivs2.flags |= IVS2_BSSID;
-						ivs2.len += 6;
-                        memcpy(lopt.prev_bssid, ap_cur->bssid, sizeof lopt.prev_bssid);
+                        ivs2.len += MAC_ADDRESS_LEN;
+                        MAC_ADDRESS_COPY(&lopt.prev_bssid, &ap_cur->bssid);
 					}
 
                     if (fwrite(&ivs2, 1, sizeof ivs2, opt.f_ivs) != sizeof ivs2)
@@ -2868,13 +2884,13 @@ skip_probe:
 
 					if (ivs2.flags & IVS2_BSSID)
 					{
-                        if (fwrite(ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
+                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, opt.f_ivs)
                             != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
 							return (EXIT_FAILURE);
 						}
-						ivs2.len -= 6;
+                        ivs2.len -= MAC_ADDRESS_LEN;
 					}
 
 					if (fwrite(&st_cur->wpa,
@@ -2964,7 +2980,7 @@ write_packet:
 
 					while (ap_cur != NULL)
 					{
-                        if (memcmp(ap_cur->bssid, namac, sizeof ap_cur->bssid) == 0)
+                        if (MAC_ADDRESS_EQUAL(&ap_cur->bssid, (mac_address *)namac))
                         {
                             break;
                         }
@@ -3162,7 +3178,7 @@ static void sort_aps(struct local_options * const options)
                 switch (options->sort_by)
                 {
                     case SORT_BY_BSSID:
-                        if (memcmp(ap_cur->bssid, ap_min->bssid, 6)
+                        if (MAC_ADDRESS_COMPARE(&ap_cur->bssid, &ap_min->bssid)
                             * options->sort_inv
                             < 0)
                             ap_min = ap_cur;
@@ -3450,7 +3466,7 @@ static int IsAp2BeSkipped(struct AP_info * ap_cur)
 
 	if (ap_cur->nb_pkt < lopt.min_pkts
 		|| time(NULL) - ap_cur->tlast > lopt.berlin
-		|| memcmp(ap_cur->bssid, BROADCAST, 6) == 0)
+		|| MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
 	{
 		return (1);
 	}
@@ -3532,8 +3548,9 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 		while (ap_cur != NULL)
 		{
 			lopt.maxaps++;
-			if (ap_cur->nb_pkt < 2 || time(NULL) - ap_cur->tlast > lopt.berlin
-				|| memcmp(ap_cur->bssid, BROADCAST, 6) == 0)
+			if (ap_cur->nb_pkt < 2 
+                || (time(NULL) - ap_cur->tlast) > lopt.berlin
+				|| MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
 			{
 				ap_cur = ap_cur->prev;
 				continue;
@@ -3802,12 +3819,12 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			snprintf(strbuf,
 					 sizeof(strbuf),
 					 " %02X:%02X:%02X:%02X:%02X:%02X",
-					 ap_cur->bssid[0],
-					 ap_cur->bssid[1],
-					 ap_cur->bssid[2],
-					 ap_cur->bssid[3],
-					 ap_cur->bssid[4],
-					 ap_cur->bssid[5]);
+					 ap_cur->bssid.addr[0],
+                     ap_cur->bssid.addr[1],
+                     ap_cur->bssid.addr[2],
+                     ap_cur->bssid.addr[3],
+                     ap_cur->bssid.addr[4],
+                     ap_cur->bssid.addr[5]);
 
 			len = strlen(strbuf);
 
@@ -3956,7 +3973,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 					lopt.mark_cur_ap = 0;
 				}
 				textstyle(TEXT_REVERSE);
-				memcpy(lopt.selected_bssid, ap_cur->bssid, 6);
+				MAC_ADDRESS_COPY((mac_address *)lopt.selected_bssid, &ap_cur->bssid);
 			}
 
 			if (ap_cur->marked)
@@ -4080,9 +4097,9 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 					}
 
 					if (ap_cur->manuf == NULL)
-						ap_cur->manuf = get_manufacturer(ap_cur->bssid[0],
-														 ap_cur->bssid[1],
-														 ap_cur->bssid[2]);
+						ap_cur->manuf = get_manufacturer(ap_cur->bssid.addr[0],
+                                                         ap_cur->bssid.addr[1],
+                                                         ap_cur->bssid.addr[2]);
 
 					snprintf(strbuf + len,
 							 sizeof(strbuf) - len - 1,
@@ -4154,7 +4171,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			}
 
 			// Don't filter unassociated clients by ESSID
-			if (memcmp(ap_cur->bssid, BROADCAST, 6) != 0
+			if (!MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid)
 				&& is_filtered_essid(ap_cur->essid))
 			{
 				ap_cur = ap_cur->prev;
@@ -4166,7 +4183,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			st_cur = lopt.st_end;
 
 			if (lopt.p_selected_ap
-				&& (memcmp(lopt.selected_bssid, ap_cur->bssid, 6) == 0))
+				&& MAC_ADDRESS_EQUAL((mac_address *)lopt.selected_bssid, &ap_cur->bssid))
 			{
 				textstyle(TEXT_REVERSE);
 			}
@@ -4185,7 +4202,8 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 					continue;
 				}
 
-				if (!memcmp(ap_cur->bssid, BROADCAST, 6) && lopt.asso_client)
+				if (MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid)
+                    && lopt.asso_client)
 				{
 					st_cur = st_cur->prev;
 					continue;
@@ -4199,16 +4217,20 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 				if (nlines >= (ws_row - 1)) return;
 
-				if (!memcmp(ap_cur->bssid, BROADCAST, 6))
+                if (MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
+                {
 					printf(" (not associated) ");
-				else
+                }
+                else
+                {
 					printf(" %02X:%02X:%02X:%02X:%02X:%02X",
-						   ap_cur->bssid[0],
-						   ap_cur->bssid[1],
-						   ap_cur->bssid[2],
-						   ap_cur->bssid[3],
-						   ap_cur->bssid[4],
-						   ap_cur->bssid[5]);
+                           ap_cur->bssid.addr[0],
+                           ap_cur->bssid.addr[1],
+                           ap_cur->bssid.addr[2],
+                           ap_cur->bssid.addr[3],
+                           ap_cur->bssid.addr[4],
+                           ap_cur->bssid.addr[5]);
+                }
 
 				printf("  %02X:%02X:%02X:%02X:%02X:%02X",
 					   st_cur->stmac[0],
@@ -4264,7 +4286,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			}
 
 			if ((lopt.p_selected_ap
-				 && (memcmp(lopt.selected_bssid, ap_cur->bssid, 6) == 0))
+				 && MAC_ADDRESS_EQUAL((mac_address *)lopt.selected_bssid, &ap_cur->bssid))
 				|| (ap_cur->marked))
 			{
 				textstyle(TEXT_RESET);
@@ -5793,7 +5815,7 @@ static struct wif * reopen_card(struct wif * const old)
     /* The interface name needs to be saved because closing the 
      * card frees all resources associated with the wi. 
      */
-    strlcpy(ifnam, wi_get_ifname(old), sizeof(ifnam));
+    strlcpy(ifnam, wi_get_ifname(old), sizeof ifnam);
 
     wi_close(old);
     new_wi = wi_open(ifnam);
@@ -7114,7 +7136,7 @@ int main(int argc, char * argv[])
 		if (lopt.num_cards <= 0 || lopt.num_cards >= MAX_CARDS)
 		{
 			printf("Failed initializing wireless card(s): %s\n", lopt.s_iface);
-			return (EXIT_FAILURE);
+			return EXIT_FAILURE;
 		}
 
 		for (i = 0; i < lopt.num_cards; i++)
@@ -7645,7 +7667,7 @@ int main(int argc, char * argv[])
 				/* Restore terminal */
 				show_cursor();
 
-				return (EXIT_FAILURE);
+				return EXIT_FAILURE;
 			}
 		}
         else
