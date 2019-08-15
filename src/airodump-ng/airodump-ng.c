@@ -540,8 +540,10 @@ static THREAD_ENTRY(input_thread)
 					lopt.message, sizeof(lopt.message), "][ paused output");
 
                 acquire_print_lock(&lopt);
+
 				dump_print(lopt.ws.ws_row, lopt.ws.ws_col, lopt.num_cards);
-                release_print_lock(&lopt);
+
+				release_print_lock(&lopt);
 			}
 			else
 				snprintf(
@@ -668,8 +670,10 @@ static THREAD_ENTRY(input_thread)
 		if (lopt.do_exit == 0 && !lopt.do_pause)
 		{
             acquire_print_lock(&lopt);
-            dump_print(lopt.ws.ws_row, lopt.ws.ws_col, lopt.num_cards);
-            release_print_lock(&lopt);
+
+			dump_print(lopt.ws.ws_row, lopt.ws.ws_col, lopt.num_cards);
+
+			release_print_lock(&lopt);
         }
 	}
 
@@ -3589,7 +3593,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			strlcat(strbuf, buffer, sizeof(strbuf));
 		}
 	}
-	else
+	else /* Must be channel option. */
 	{
 		snprintf(strbuf, sizeof(strbuf) - 1, " CH %2d", lopt.channel[0]);
 		for (i = 1; i < if_num; i++)
@@ -7770,8 +7774,10 @@ int main(int argc, char * argv[])
 			if (!lopt.do_pause && !lopt.background_mode)
 			{
                 acquire_print_lock(&lopt);
+
 				dump_print(lopt.ws.ws_row, lopt.ws.ws_col, lopt.num_cards);
-                release_print_lock(&lopt);
+
+				release_print_lock(&lopt);
             }
 			continue;
 		}
