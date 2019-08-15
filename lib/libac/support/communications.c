@@ -1210,7 +1210,6 @@ int dump_initialize_multi_format(char * prefix, int ivs_only)
 
 		fivs2.version = IVS2_VERSION;
 
-		memset(ofn, 0, ofn_len);
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, IVS2_EXTENSION);
 
