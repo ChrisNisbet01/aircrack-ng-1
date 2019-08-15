@@ -91,6 +91,7 @@
 #include "radiotap/radiotap.h"
 #include "radiotap/radiotap_iter.h"
 #include "strlcpy.h"
+#include "ap_list.h"
 
 struct devices dev;
 
@@ -163,7 +164,6 @@ int is_filtered_essid(const uint8_t * essid);
 struct communication_options opt;
 
 TAILQ_HEAD(na_list_head, NA_info);
-TAILQ_HEAD(ap_list_head, AP_info);
 TAILQ_HEAD(sta_list_head, ST_info);
 
 static struct local_options
@@ -7424,12 +7424,12 @@ int main(int argc, char * argv[])
 
             if (opt.output_format_csv)
             {
-				dump_write_csv(lopt.ap_1st, lopt.st_1st, lopt.f_encrypt);
+				dump_write_csv(&lopt.ap_list[lopt.current_ap_list_index], lopt.st_1st, lopt.f_encrypt);
             }
 
             if (opt.output_format_wifi_scanner)
             {
-                dump_write_wifi_scanner(lopt.ap_1st,
+				dump_write_wifi_scanner(&lopt.ap_list[lopt.current_ap_list_index],
                                         lopt.st_1st,
                                         lopt.f_encrypt,
                                         lopt.filter_seconds,
@@ -7440,11 +7440,13 @@ int main(int argc, char * argv[])
 
             if (opt.output_format_kismet_csv)
             {
-				dump_write_kismet_csv(lopt.ap_1st, lopt.st_1st, lopt.f_encrypt);
+				dump_write_kismet_csv(&lopt.ap_list[lopt.current_ap_list_index], 
+									  lopt.st_1st, 
+									  lopt.f_encrypt);
             }
 
 			if (opt.output_format_kismet_netxml)
-				dump_write_kismet_netxml(lopt.ap_1st,
+				dump_write_kismet_netxml(&lopt.ap_list[lopt.current_ap_list_index],
 										 lopt.st_1st,
 										 lopt.f_encrypt,
 										 lopt.airodump_start_time);
@@ -7836,12 +7838,12 @@ int main(int argc, char * argv[])
 	{
         if (opt.output_format_csv)
         {
-			dump_write_csv(lopt.ap_1st, lopt.st_1st, lopt.f_encrypt);
+			dump_write_csv(&lopt.ap_list[lopt.current_ap_list_index], lopt.st_1st, lopt.f_encrypt);
         }
 
         if (opt.output_format_wifi_scanner)
         {
-            dump_write_wifi_scanner(lopt.ap_1st, 
+			dump_write_wifi_scanner(&lopt.ap_list[lopt.current_ap_list_index],
                                     lopt.st_1st, 
                                     lopt.f_encrypt, 
                                     lopt.filter_seconds, 
@@ -7852,12 +7854,14 @@ int main(int argc, char * argv[])
 
         if (opt.output_format_kismet_csv)
         {
-			dump_write_kismet_csv(lopt.ap_1st, lopt.st_1st, lopt.f_encrypt);
+			dump_write_kismet_csv(&lopt.ap_list[lopt.current_ap_list_index], 
+								  lopt.st_1st, 
+								  lopt.f_encrypt);
         }
 
         if (opt.output_format_kismet_netxml)
         {
-			dump_write_kismet_netxml(lopt.ap_1st,
+			dump_write_kismet_netxml(&lopt.ap_list[lopt.current_ap_list_index],
                                      lopt.st_1st,
                                      lopt.f_encrypt,
                                      lopt.airodump_start_time);
