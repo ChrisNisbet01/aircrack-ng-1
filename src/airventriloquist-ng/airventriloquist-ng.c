@@ -1695,9 +1695,9 @@ static int do_active_injection(void)
 			   NULL,
 			   0,
 			   0,
-			   opt.f_bssid,
+			   (uint8_t *)&opt.f_bssid,
 			   opt.r_bssid,
-			   (uint8_t *) opt.r_essid,
+			   (uint8_t *)opt.r_essid,
 			   opt.ignore_negative_one,
 			   0 /* nodetect */)
 		!= 0)

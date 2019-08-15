@@ -214,7 +214,11 @@ static struct local_options
 
 	int asso_client; /* only show associated clients */
 
-	unsigned char wpa_bssid[6]; /* the wpa handshake bssid   */
+	char * iwpriv;
+	char * iwconfig;
+	char * wlanctlng;
+
+	mac_address wpa_bssid; /* the wpa handshake bssid   */
 	char message[512];
 	char decloak;
 
@@ -290,7 +294,7 @@ static struct local_options
 
     pthread_mutex_t mx_sort; /* lock write access to ap LL   */
 
-	unsigned char selected_bssid[6]; /* bssid that is selected */
+	mac_address selected_bssid; /* bssid that is selected */
 
 	u_int maxsize_essid_seen;
 	int show_manufacturer;
@@ -327,7 +331,7 @@ static void resetSelection(void)
 	lopt.mark_cur_ap = 0;
 	lopt.do_pause = 0;
 	lopt.do_sort_always = 0;
-    memset(lopt.selected_bssid, '\x00', sizeof lopt.selected_bssid);
+    MAC_ADDRESS_CLEAR(&lopt.selected_bssid);
 }
 
 static void color_off(void)
@@ -866,20 +870,20 @@ static void airodump_usage(void)
 	free(l_usage);
 }
 
-static int is_filtered_netmask(const uint8_t * bssid)
+static int is_filtered_netmask(mac_address const * const bssid)
 {
 	REQUIRE(bssid != NULL);
 
-    unsigned char mac1[MAC_ADDRESS_LEN];
-    unsigned char mac2[MAC_ADDRESS_LEN];
+    mac_address mac1;
+    mac_address mac2;
 
-    for (size_t i = 0; i < MAC_ADDRESS_LEN; i++)
+    for (size_t i = 0; i < sizeof mac1; i++)
 	{
-		mac1[i] = bssid[i] & opt.f_netmask[i];
-		mac2[i] = opt.f_bssid[i] & opt.f_netmask[i];
+		mac1.addr[i] = bssid->addr[i] & opt.f_netmask[i];
+		mac2.addr[i] = opt.f_bssid.addr[i] & opt.f_netmask[i];
 	}
 
-    bool const is_filtered = memcmp(mac1, mac2, MAC_ADDRESS_LEN) != 0;
+    bool const is_filtered = !MAC_ADDRESS_EQUAL(&mac1, &mac2);
 
 	return is_filtered;
 }
@@ -1217,19 +1221,25 @@ list_check_decloak(struct pkt_buf ** list, int length, const uint8_t * packet)
 	return 1; // didn't find decloak
 }
 
-static int remove_namac(unsigned char * mac)
+static int remove_namac(mac_address const * const mac)
 {
 	struct NA_info * na_cur = NULL;
 	struct NA_info * na_prv = NULL;
 
-	if (mac == NULL) return (-1);
+	if (mac == NULL)
+	{
+		return (-1);
+	}
 
 	na_cur = lopt.na_1st;
 	na_prv = NULL;
 
 	while (na_cur != NULL)
 	{
-		if (!memcmp(na_cur->namac, mac, 6)) break;
+		if (MAC_ADDRESS_EQUAL(&na_cur->namac, mac))
+		{
+			break;
+		}
 
 		na_prv = na_cur;
 		na_cur = na_cur->next;
@@ -1272,9 +1282,9 @@ static int dump_add_packet(unsigned char * h80211,
 	struct timeval tv;
 	struct ivs2_pkthdr ivs2;
 	unsigned char *p, *org_p, c;
-    unsigned char bssid[6] = { 0 };
-    unsigned char stmac[6] = { 0 };
-    unsigned char namac[6] = { 0 };
+    mac_address bssid;
+	mac_address stmac;
+    mac_address namac;
     unsigned char clear[2048] = { 0 };
     int weight[16] = { 0 };
 	int num_xor = 0;
@@ -1285,6 +1295,10 @@ static int dump_add_packet(unsigned char * h80211,
 	struct AP_info * ap_prv = NULL;
 	struct ST_info * st_prv = NULL;
 	struct NA_info * na_prv = NULL;
+
+	MAC_ADDRESS_CLEAR(&bssid);
+	MAC_ADDRESS_CLEAR(&stmac);
+	MAC_ADDRESS_CLEAR(&namac); 
 
 	/* skip all non probe response frames in active scanning simulation mode */
 	if (lopt.active_scan_sim > 0 && h80211[0] != 0x50) return (0);
@@ -1312,28 +1326,34 @@ static int dump_add_packet(unsigned char * h80211,
 	switch (h80211[1] & IEEE80211_FC1_DIR_MASK)
 	{
 		case IEEE80211_FC1_DIR_NODS:
-			memcpy(bssid, h80211 + 16, 6); //-V525
+			MAC_ADDRESS_COPY(&bssid, (mac_address *)(h80211 + 16));
 			break; // Adhoc
 		case IEEE80211_FC1_DIR_TODS:
-			memcpy(bssid, h80211 + 4, 6);
+			MAC_ADDRESS_COPY(&bssid, (mac_address *)(h80211 + 4));
 			break; // ToDS
 		case IEEE80211_FC1_DIR_FROMDS:
 		case IEEE80211_FC1_DIR_DSTODS:
-			memcpy(bssid, h80211 + 10, 6);
+			MAC_ADDRESS_COPY(&bssid, (mac_address *)(h80211 + 10));
 			break; // WDS -> Transmitter taken as BSSID
 		default:
 			abort();
 	}
 
-	if (memcmp(opt.f_bssid, NULL_MAC, 6) != 0)
+	if (!MAC_ADDRESS_IS_EMPTY(&opt.f_bssid))
 	{
 		if (memcmp(opt.f_netmask, NULL_MAC, 6) != 0)
 		{
-			if (is_filtered_netmask(bssid)) return (1);
+			if (is_filtered_netmask(&bssid))
+			{
+				return (1);
+			}
 		}
 		else
 		{
-			if (memcmp(opt.f_bssid, bssid, 6) != 0) return (1);
+			if (!MAC_ADDRESS_EQUAL(&opt.f_bssid, &bssid))
+			{
+				return (1);
+			}
 		}
 	}
 
@@ -1344,7 +1364,7 @@ static int dump_add_packet(unsigned char * h80211,
 
 	while (ap_cur != NULL)
 	{
-        if (MAC_ADDRESS_EQUAL(&ap_cur->bssid, (mac_address *)bssid))
+        if (MAC_ADDRESS_EQUAL(&ap_cur->bssid, &bssid))
         {
             break;
         }
@@ -1365,7 +1385,7 @@ static int dump_add_packet(unsigned char * h80211,
 		}
 
 		/* if mac is listed as unknown, remove it */
-		remove_namac(bssid);
+		remove_namac(&bssid);
 
         if (lopt.ap_1st == NULL)
         {
@@ -1376,7 +1396,7 @@ static int dump_add_packet(unsigned char * h80211,
 			ap_prv->next = ap_cur;
         }
 
-		MAC_ADDRESS_COPY(&ap_cur->bssid, (mac_address *)bssid);
+		MAC_ADDRESS_COPY(&ap_cur->bssid, &bssid);
 		if (ap_cur->manuf == NULL)
 		{
 			ap_cur->manuf = get_manufacturer(
@@ -1474,7 +1494,7 @@ static int dump_add_packet(unsigned char * h80211,
 	 * or FromDS == 1 and ToDS == 0 */
 
 	if (((h80211[1] & IEEE80211_FC1_DIR_MASK) == IEEE80211_FC1_DIR_NODS
-		 && memcmp(h80211 + 10, bssid, 6) == 0)
+		 && MAC_ADDRESS_EQUAL((mac_address *)(h80211 + 10), &bssid))
 		|| ((h80211[1] & IEEE80211_FC1_DIR_MASK) == IEEE80211_FC1_DIR_FROMDS))
 	{
 		ap_cur->power_index = (ap_cur->power_index + 1) % NB_PWR;
@@ -1556,24 +1576,30 @@ static int dump_add_packet(unsigned char * h80211,
 
 			/* if management, check that SA != BSSID */
 
-			if (memcmp(h80211 + 10, bssid, 6) == 0) goto skip_station;
+			if (MAC_ADDRESS_EQUAL((mac_address *)(h80211 + 10), &bssid))
+			{
+				goto skip_station;
+			}
 
-			memcpy(stmac, h80211 + 10, 6);
+			MAC_ADDRESS_COPY(&stmac, (mac_address *)(h80211 + 10));
 			break;
 
 		case IEEE80211_FC1_DIR_TODS:
 
 			/* ToDS packet, must come from a client */
 
-			memcpy(stmac, h80211 + 10, 6);
+			MAC_ADDRESS_COPY(&stmac, (mac_address *)(h80211 + 10));
 			break;
 
 		case IEEE80211_FC1_DIR_FROMDS:
 
 			/* FromDS packet, reject broadcast MACs */
 
-			if ((h80211[4] % 2) != 0) goto skip_station;
-			memcpy(stmac, h80211 + 4, 6);
+			if ((h80211[4] % 2) != 0)
+			{
+				goto skip_station;
+			}
+			MAC_ADDRESS_COPY(&stmac, (mac_address *)(h80211 + 4));
 			break;
 
 		case IEEE80211_FC1_DIR_DSTODS:
@@ -1590,7 +1616,7 @@ static int dump_add_packet(unsigned char * h80211,
 
 	while (st_cur != NULL)
 	{
-        if (memcmp(st_cur->stmac, stmac, 6) == 0)
+        if (MAC_ADDRESS_EQUAL(&st_cur->stmac, &stmac))
         {
             break;
         }
@@ -1611,7 +1637,7 @@ static int dump_add_packet(unsigned char * h80211,
 		}
 
 		/* if mac is listed as unknown, remove it */
-		remove_namac(stmac);
+		remove_namac(&stmac);
 
         if (lopt.st_1st == NULL)
         {
@@ -1622,12 +1648,12 @@ static int dump_add_packet(unsigned char * h80211,
 			st_prv->next = st_cur;
         }
 
-        memcpy(st_cur->stmac, stmac, sizeof st_cur->stmac);
+        MAC_ADDRESS_COPY(&st_cur->stmac, &stmac);
 
 		if (st_cur->manuf == NULL)
 		{
 			st_cur->manuf = get_manufacturer(
-				st_cur->stmac[0], st_cur->stmac[1], st_cur->stmac[2]);
+				st_cur->stmac.addr[0], st_cur->stmac.addr[1], st_cur->stmac.addr[2]);
 		}
 
 		st_cur->nb_pkt = 0;
@@ -1690,7 +1716,7 @@ static int dump_add_packet(unsigned char * h80211,
 	 * or FromDS == 0 and ToDS == 1 */
 
 	if (((h80211[1] & IEEE80211_FC1_DIR_MASK) == IEEE80211_FC1_DIR_NODS
-		 && memcmp(h80211 + 10, bssid, 6) != 0)
+		 && !MAC_ADDRESS_EQUAL((mac_address *)(h80211 + 10), &bssid))
 		|| ((h80211[1] & IEEE80211_FC1_DIR_MASK) == IEEE80211_FC1_DIR_TODS))
 	{
 		st_cur->power = ri->ri_power;
@@ -2758,18 +2784,18 @@ skip_probe:
 							/* copy the key descriptor version */
 							st_cur->wpa.keyver = (uint8_t)(h80211[z + 6] & 7);
 
-							memcpy(st_cur->wpa.stmac, st_cur->stmac, 6);
-							MAC_ADDRESS_COPY((mac_address *)lopt.wpa_bssid, &ap_cur->bssid);
+							MAC_ADDRESS_COPY(&st_cur->wpa.stmac, &st_cur->stmac);
+							MAC_ADDRESS_COPY(&lopt.wpa_bssid, &ap_cur->bssid);
 							snprintf(lopt.message,
 									 sizeof(lopt.message),
 									 "][ PMKID found: "
 									 "%02X:%02X:%02X:%02X:%02X:%02X ",
-									 lopt.wpa_bssid[0],
-									 lopt.wpa_bssid[1],
-									 lopt.wpa_bssid[2],
-									 lopt.wpa_bssid[3],
-									 lopt.wpa_bssid[4],
-									 lopt.wpa_bssid[5]);
+									 lopt.wpa_bssid.addr[0],
+									 lopt.wpa_bssid.addr[1],
+									 lopt.wpa_bssid.addr[2],
+									 lopt.wpa_bssid.addr[3],
+									 lopt.wpa_bssid.addr[4],
+									 lopt.wpa_bssid.addr[5]);
 
 							goto write_packet;
 						}
@@ -2852,17 +2878,17 @@ skip_probe:
 
 			if (st_cur->wpa.state == 7 && !is_filtered_essid(ap_cur->essid))
 			{
-				memcpy(st_cur->wpa.stmac, st_cur->stmac, 6);
-				MAC_ADDRESS_COPY((mac_address *)lopt.wpa_bssid, &ap_cur->bssid);
+				MAC_ADDRESS_COPY(&st_cur->wpa.stmac, &st_cur->stmac);
+				MAC_ADDRESS_COPY(&lopt.wpa_bssid, &ap_cur->bssid);
 				snprintf(lopt.message,
 						 sizeof(lopt.message),
 						 "][ WPA handshake: %02X:%02X:%02X:%02X:%02X:%02X ",
-						 lopt.wpa_bssid[0],
-						 lopt.wpa_bssid[1],
-						 lopt.wpa_bssid[2],
-						 lopt.wpa_bssid[3],
-						 lopt.wpa_bssid[4],
-						 lopt.wpa_bssid[5]);
+						 lopt.wpa_bssid.addr[0],
+						 lopt.wpa_bssid.addr[1],
+						 lopt.wpa_bssid.addr[2],
+						 lopt.wpa_bssid.addr[3],
+						 lopt.wpa_bssid.addr[4],
+						 lopt.wpa_bssid.addr[5]);
 
 				if (opt.f_ivs != NULL)
 				{
@@ -2962,15 +2988,15 @@ write_packet:
 			while ((uintptr_t) p <= adds_uptr((uintptr_t) h80211, 16)
 				   && (uintptr_t) p <= adds_uptr((uintptr_t) h80211, caplen))
 			{
-				memcpy(namac, p, sizeof namac);
+				MAC_ADDRESS_COPY(&namac, (mac_address *)p);
 
-                if (memcmp(namac, NULL_MAC, sizeof namac) == 0)
+                if (MAC_ADDRESS_IS_EMPTY(&namac))
 				{
                     p += sizeof namac;
 					continue;
 				}
 
-                if (memcmp(namac, BROADCAST, sizeof namac) == 0)
+                if (MAC_ADDRESS_IS_BROADCAST(&namac))
 				{
                     p += sizeof namac;
 					continue;
@@ -2983,7 +3009,7 @@ write_packet:
 
 					while (ap_cur != NULL)
 					{
-                        if (MAC_ADDRESS_EQUAL(&ap_cur->bssid, (mac_address *)namac))
+                        if (MAC_ADDRESS_EQUAL(&ap_cur->bssid, &namac))
                         {
                             break;
                         }
@@ -3004,7 +3030,7 @@ write_packet:
 
 					while (st_cur != NULL)
 					{
-                        if (memcmp(st_cur->stmac, namac, sizeof st_cur->stmac) == 0)
+                        if (MAC_ADDRESS_EQUAL(&st_cur->stmac, &namac))
                         {
                             break;
                         }
@@ -3028,7 +3054,7 @@ write_packet:
 
 				while (na_cur != NULL)
 				{
-                    if (memcmp(na_cur->namac, namac, sizeof na_cur->namac) == 0)
+                    if (MAC_ADDRESS_EQUAL(&na_cur->namac, &namac))
                     {
                         break;
                     }
@@ -3049,7 +3075,7 @@ write_packet:
 						return 1;
 					}
 
-                    memcpy(na_cur->namac, namac, sizeof na_cur->namac);
+                    MAC_ADDRESS_COPY(&na_cur->namac, &namac);
 
 					gettimeofday(&na_cur->tv, NULL);
 					na_cur->tinit = time(NULL);
@@ -3976,7 +4002,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 					lopt.mark_cur_ap = 0;
 				}
 				textstyle(TEXT_REVERSE);
-				MAC_ADDRESS_COPY((mac_address *)lopt.selected_bssid, &ap_cur->bssid);
+				MAC_ADDRESS_COPY(&lopt.selected_bssid, &ap_cur->bssid);
 			}
 
 			if (ap_cur->marked)
@@ -4186,7 +4212,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			st_cur = lopt.st_end;
 
 			if (lopt.p_selected_ap
-				&& MAC_ADDRESS_EQUAL((mac_address *)lopt.selected_bssid, &ap_cur->bssid))
+				&& MAC_ADDRESS_EQUAL(&lopt.selected_bssid, &ap_cur->bssid))
 			{
 				textstyle(TEXT_REVERSE);
 			}
@@ -4236,12 +4262,12 @@ static void dump_print(int ws_row, int ws_col, int if_num)
                 }
 
 				printf("  %02X:%02X:%02X:%02X:%02X:%02X",
-					   st_cur->stmac[0],
-					   st_cur->stmac[1],
-					   st_cur->stmac[2],
-					   st_cur->stmac[3],
-					   st_cur->stmac[4],
-					   st_cur->stmac[5]);
+					   st_cur->stmac.addr[0],
+					   st_cur->stmac.addr[1],
+					   st_cur->stmac.addr[2],
+					   st_cur->stmac.addr[3],
+					   st_cur->stmac.addr[4],
+					   st_cur->stmac.addr[5]);
 
 				printf("  %3d ", st_cur->power);
 				printf("  %2d", st_cur->rate_to / 1000000);
@@ -4289,7 +4315,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			}
 
 			if ((lopt.p_selected_ap
-				 && MAC_ADDRESS_EQUAL((mac_address *)lopt.selected_bssid, &ap_cur->bssid))
+				 && MAC_ADDRESS_EQUAL(&lopt.selected_bssid, &ap_cur->bssid))
 				|| (ap_cur->marked))
 			{
 				textstyle(TEXT_RESET);
@@ -4335,12 +4361,12 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 			if (nlines >= (ws_row - 1)) return;
 
 			printf(" %02X:%02X:%02X:%02X:%02X:%02X",
-				   na_cur->namac[0],
-				   na_cur->namac[1],
-				   na_cur->namac[2],
-				   na_cur->namac[3],
-				   na_cur->namac[4],
-				   na_cur->namac[5]);
+				   na_cur->namac.addr[0],
+				   na_cur->namac.addr[1],
+				   na_cur->namac.addr[2],
+				   na_cur->namac.addr[3],
+				   na_cur->namac.addr[4],
+				   na_cur->namac.addr[5]);
 
 			printf("  %3d", na_cur->channel);
 			printf(" %3d", na_cur->power);
@@ -6575,9 +6601,9 @@ int main(int argc, char * argv[])
 		lopt.channel[i] = 0;
 	}
 
-    memset(opt.f_bssid, '\x00', sizeof opt.f_bssid);
+    MAC_ADDRESS_CLEAR(&opt.f_bssid);
     memset(opt.f_netmask, '\x00', sizeof opt.f_netmask);
-    memset(lopt.wpa_bssid, '\x00', sizeof lopt.wpa_bssid);
+    MAC_ADDRESS_CLEAR(&lopt.wpa_bssid);
 
 	/* check the arguments */
 
@@ -6944,12 +6970,12 @@ int main(int argc, char * argv[])
 
 			case 'd':
 
-				if (memcmp(opt.f_bssid, NULL_MAC, 6) != 0)
+				if (!MAC_ADDRESS_IS_EMPTY(&opt.f_bssid))
 				{
 					printf("Notice: bssid already given\n");
 					break;
 				}
-				if (getmac(optarg, 1, opt.f_bssid) != 0)
+				if (getmac(optarg, 1, (uint8_t *)&opt.f_bssid) != 0)
 				{
 					printf("Notice: invalid bssid\n");
 					printf("\"%s --help\" for help.\n", argv[0]);
@@ -7217,8 +7243,8 @@ int main(int argc, char * argv[])
 
 	if (argc - optind == 1) lopt.s_iface = argv[argc - 1];
 
-	if ((memcmp(opt.f_netmask, NULL_MAC, 6) != 0)
-		&& (memcmp(opt.f_bssid, NULL_MAC, 6) == 0))
+	if (memcmp(opt.f_netmask, NULL_MAC, 6) != 0
+		&& MAC_ADDRESS_IS_EMPTY(&opt.f_bssid))
 	{
 		printf("Notice: specify bssid \"--bssid\" with \"--netmask\"\n");
 		printf("\"%s --help\" for help.\n", argv[0]);
