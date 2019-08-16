@@ -130,8 +130,6 @@ static const char * OUI_PATHS[]
 	   "/usr/share/wireshark/manuf/oui.txt",
 	   NULL};
 
-static int read_pkts = 0;
-
 enum
 {
 	channel_list_invalid = -1,
@@ -6904,8 +6902,10 @@ static void pace_packet_reader(
 
 int main(int argc, char * argv[])
 {
+	int program_exit_code;
 #define ONE_HOUR (60 * 60)
 #define ONE_MIN (60)
+	int read_pkts = 0; 
 
     long time_slept, cycle_time, cycle_time2;
 	char * output_format_string;
@@ -7200,7 +7200,8 @@ int main(int argc, char * argv[])
 			case '?':
 
 				printf("\"%s --help\" for help.\n", argv[0]);
-				return (EXIT_FAILURE);
+				program_exit_code = EXIT_FAILURE;
+				goto done; 
 
 			case 'K':
 			{
@@ -7211,7 +7212,8 @@ int main(int argc, char * argv[])
 					|| !(bg_mode == 0 || bg_mode == 1))
 				{
 					printf("Invalid background mode. Must be '0' or '1'\n");
-					exit(EXIT_FAILURE);
+					program_exit_code = EXIT_FAILURE;
+					goto done;
 				}
 				lopt.background_mode = bg_mode;
 				break;
@@ -7222,8 +7224,9 @@ int main(int argc, char * argv[])
 				{
 					printf("Error: Write interval is not a number (>0). "
 						   "Aborting.\n");
-					exit(EXIT_FAILURE);
-				}
+    				program_exit_code = EXIT_FAILURE;
+    				goto done;
+    			}
 
 				lopt.file_write_interval = (int) strtol(optarg, NULL, 10);
 
@@ -7231,7 +7234,8 @@ int main(int argc, char * argv[])
 				{
 					printf("Error: Write interval must be greater than 0. "
 						   "Aborting.\n");
-					exit(EXIT_FAILURE);
+					program_exit_code = EXIT_FAILURE;
+					goto done;
 				}
 				break;
 
@@ -7299,7 +7303,8 @@ int main(int argc, char * argv[])
 				if (lopt.channel[0] < 0)
 				{
 					airodump_usage();
-					return (EXIT_FAILURE);
+					program_exit_code = EXIT_FAILURE;
+					goto done;
 				}
 
 				lopt.chanoption = 1;
@@ -7357,7 +7362,8 @@ int main(int argc, char * argv[])
 					{
 						printf("Error: invalid band (%c)\n", optarg[i]);
 						printf("\"%s --help\" for help.\n", argv[0]);
-						exit(EXIT_FAILURE);
+						program_exit_code = EXIT_FAILURE;
+						goto done;
 					}
 				}
 
@@ -7398,7 +7404,8 @@ int main(int argc, char * argv[])
 					fprintf(stderr,
 							"Invalid output format: IVS and PCAP "
 							"format cannot be used together.\n");
-					return (EXIT_FAILURE);
+					program_exit_code = EXIT_FAILURE;
+					goto done;
 				}
 
 				ivs_only = 1;
@@ -7427,8 +7434,9 @@ int main(int argc, char * argv[])
 				{
 					printf("Packet source already specified.\n");
 					printf("\"%s --help\" for help.\n", argv[0]);
-					return (EXIT_FAILURE);
-				}
+    				program_exit_code = EXIT_FAILURE;
+    				goto done;
+    			}
 				opt.s_file = optarg;
 				break;
 
@@ -7437,8 +7445,9 @@ int main(int argc, char * argv[])
 				if (strtol(optarg, NULL, 10) > 2 || errno == EINVAL)
 				{
 					airodump_usage();
-					return (EXIT_FAILURE);
-				}
+    				program_exit_code = EXIT_FAILURE;
+    				goto done;
+    			}
 				if (lopt.chswitch != 0)
 				{
 					printf("Notice: switching method already given\n");
@@ -7487,7 +7496,8 @@ int main(int argc, char * argv[])
 				{
 					printf("Notice: invalid netmask\n");
 					printf("\"%s --help\" for help.\n", argv[0]);
-					return (EXIT_FAILURE);
+					program_exit_code = EXIT_FAILURE;
+					goto done;
 				}
 				break;
 
@@ -7503,7 +7513,8 @@ int main(int argc, char * argv[])
 					printf("Notice: invalid bssid\n");
 					printf("\"%s --help\" for help.\n", argv[0]);
 
-					return (EXIT_FAILURE);
+					program_exit_code = EXIT_FAILURE;
+					goto done;
 				}
 				break;
 
@@ -7524,7 +7535,8 @@ int main(int argc, char * argv[])
 				{
 					printf("Error: ESSID regular expression already given. "
 						   "Aborting\n");
-					exit(EXIT_FAILURE);
+					program_exit_code = EXIT_FAILURE;
+					goto done;
 				}
 
 				lopt.f_essid_regex
@@ -7536,7 +7548,8 @@ int main(int argc, char * argv[])
 						   "offset %d: %s; aborting\n",
 						   pcreerroffset,
 						   pcreerror);
-					exit(EXIT_FAILURE);
+					program_exit_code = EXIT_FAILURE;
+					goto done;
 				}
 #else
 				printf("Error: Airodump-ng wasn't compiled with PCRE support; "
@@ -7611,7 +7624,8 @@ int main(int argc, char * argv[])
 										"Invalid output format: IVS "
 										"and PCAP format cannot be "
 										"used together.\n");
-								return (EXIT_FAILURE);
+								program_exit_code = EXIT_FAILURE;
+								goto done;
 							}
 							opt.output_format_pcap = 1;
 						}
@@ -7625,7 +7639,8 @@ int main(int argc, char * argv[])
 										"Invalid output format: IVS "
 										"and PCAP format cannot be "
 										"used together.\n");
-								return (EXIT_FAILURE);
+								program_exit_code = EXIT_FAILURE;
+								goto done;
 							}
 							ivs_only = 1;
 						}
@@ -7698,7 +7713,8 @@ int main(int argc, char * argv[])
 							fprintf(stderr,
 									"Invalid output format: <%s>\n",
 									output_format_string);
-							exit(EXIT_FAILURE);
+							program_exit_code = EXIT_FAILURE;
+							goto done;
 						}
 					}
 					output_format_string = strtok(NULL, ",");
@@ -7708,7 +7724,8 @@ int main(int argc, char * argv[])
 
 			case 'H':
 				airodump_usage();
-				return (EXIT_FAILURE);
+				program_exit_code = EXIT_FAILURE;
+				goto done; 
 
 			case 'x':
 
@@ -7720,7 +7737,8 @@ int main(int argc, char * argv[])
 			case '2':
 #ifndef CONFIG_LIBNL
 				printf("HT Channel unsupported\n");
-				return (EXIT_FAILURE);
+				program_exit_code = EXIT_FAILURE;
+				goto done;
 #else
 				lopt.htval = CHANNEL_HT20;
 #endif
@@ -7728,7 +7746,8 @@ int main(int argc, char * argv[])
 			case '3':
 #ifndef CONFIG_LIBNL
 				printf("HT Channel unsupported\n");
-				return (EXIT_FAILURE);
+				program_exit_code = EXIT_FAILURE;
+				goto done;
 #else
 				lopt.htval = CHANNEL_HT40_MINUS;
 #endif
@@ -7736,7 +7755,8 @@ int main(int argc, char * argv[])
 			case '5':
 #ifndef CONFIG_LIBNL
 				printf("HT Channel unsupported\n");
-				return (EXIT_FAILURE);
+				program_exit_code = EXIT_FAILURE;
+				goto done;
 #else
 				lopt.htval = CHANNEL_HT40_PLUS;
 #endif
@@ -7744,7 +7764,8 @@ int main(int argc, char * argv[])
 
 			default:
 				airodump_usage();
-				return (EXIT_FAILURE);
+				program_exit_code = EXIT_FAILURE;
+				goto done;
 		}
 	} while (1);
 
@@ -7762,7 +7783,8 @@ int main(int argc, char * argv[])
 		{
 			printf("\"%s --help\" for help.\n", argv[0]);
 		}
-		return (EXIT_FAILURE);
+		program_exit_code = EXIT_FAILURE;
+		goto done;
 	}
 
 	if ((argc - optind) == 1)
@@ -7775,7 +7797,8 @@ int main(int argc, char * argv[])
 	{
 		printf("Notice: specify bssid \"--bssid\" with \"--netmask\"\n");
 		printf("\"%s --help\" for help.\n", argv[0]);
-		return (EXIT_FAILURE);
+		program_exit_code = EXIT_FAILURE;
+		goto done;
 	}
 
 	if (lopt.show_wps && lopt.show_manufacturer)
@@ -7791,7 +7814,8 @@ int main(int argc, char * argv[])
 		if (lopt.num_cards <= 0 || lopt.num_cards >= MAX_CARDS)
 		{
 			printf("Failed initializing wireless card(s): %s\n", lopt.s_iface);
-			return EXIT_FAILURE;
+			program_exit_code = EXIT_FAILURE;
+			goto done;
 		}
 
 		for (i = 0; i < lopt.num_cards; i++)
@@ -7814,7 +7838,8 @@ int main(int argc, char * argv[])
 			if (lopt.frequency[0] == -1)
 			{
 				printf("No valid frequency given.\n");
-				return (EXIT_FAILURE);
+				program_exit_code = EXIT_FAILURE;
+				goto done;
 			}
 
 			rearrange_frequencies();
@@ -7874,7 +7899,8 @@ int main(int argc, char * argv[])
 		if (lopt.packet_reader_context == NULL)
 		{
 			perror("open failed");
-			return (EXIT_FAILURE);
+			program_exit_code = EXIT_FAILURE;
+			goto done;
 		}
 	}
 
@@ -7889,8 +7915,9 @@ int main(int argc, char * argv[])
 										 lopt.filter_seconds, 
 										 lopt.file_reset_seconds))
         {
-            return (EXIT_FAILURE);
-        }
+			program_exit_code = EXIT_FAILURE;
+			goto done;
+		}
 
         /* FIXME - needed while there are two methods of opening 
          * update files. The method above is used by multiple apps that 
@@ -7902,7 +7929,8 @@ int main(int argc, char * argv[])
 												 lopt.filter_seconds,
 												 lopt.file_reset_seconds))
 		{
-			return EXIT_FAILURE;
+			program_exit_code = EXIT_FAILURE;
+			goto done;
 		}
     }
 
@@ -7921,7 +7949,8 @@ int main(int argc, char * argv[])
         if (pthread_create(&lopt.gps_tid, NULL, &gps_tracker_thread, &lopt.gps_thread_result) != 0)
 		{
 			perror("Could not create GPS thread");
-			return (EXIT_FAILURE);
+			program_exit_code = EXIT_FAILURE;
+			goto done;
 		}
 
 		usleep(50000);
@@ -7962,8 +7991,9 @@ int main(int argc, char * argv[])
 	if (!lopt.background_mode
 		&& pthread_create(&lopt.input_tid, NULL, &input_thread, NULL) != 0)
 	{
-		perror("pthread_create failed");
-		return (EXIT_FAILURE);
+		perror("Could not create input thread");
+		program_exit_code = EXIT_FAILURE;
+		goto done;
 	}
 
     update_window_size(&lopt, &lopt.ws);
@@ -8097,9 +8127,8 @@ int main(int argc, char * argv[])
 				}
 				perror("select failed");
 
-				restore_terminal(&lopt);
-
-				return EXIT_FAILURE;
+				program_exit_code = EXIT_FAILURE;
+				goto done;
 			}
 		}
         else
@@ -8150,8 +8179,8 @@ int main(int argc, char * argv[])
                         wi[i] = reopen_card(wi[i]);
 						if (wi[i] == NULL)
 						{
-							restore_terminal(&lopt); 
-							exit(EXIT_FAILURE);
+							program_exit_code = EXIT_FAILURE;
+							goto done;
 						}
 
 						fd_raw[i] = wi_fd(wi[i]);
@@ -8162,8 +8191,6 @@ int main(int argc, char * argv[])
 
 						break;
 					}
-
-					read_pkts++;
 
 					wi_read_failed = 0;
 					dump_add_packet(h80211, caplen, &ri, i);
@@ -8232,7 +8259,10 @@ int main(int argc, char * argv[])
 
 	oui_list_free(&lopt.manufacturer_list);
 
+	program_exit_code = EXIT_SUCCESS;
+
+done:
 	restore_terminal(&lopt);
 
-	return EXIT_SUCCESS;
+	return program_exit_code;
 }
