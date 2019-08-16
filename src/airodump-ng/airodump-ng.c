@@ -6109,7 +6109,7 @@ static int getfrequencies(
 
 static bool name_already_specified(
 	char const * const interface_name, 
-	char * * const iface, 
+	char const * const * const iface, 
 	size_t if_count)
 {
 	bool already_specified;
@@ -6131,13 +6131,13 @@ done:
 
 static int init_cards(
 	const char * cardstr, 
-	char * * const iface, 
 	struct wif * * wi)
 {
 	char * buffer;
 	char * buf = NULL;
 	int if_count = 0;
 	char * interface_name;
+	char const * iface[MAX_CARDS];
 
 	// Check card string is valid
 	if (cardstr == NULL || cardstr[0] == '0')
@@ -6894,7 +6894,6 @@ int main(int argc, char * argv[])
 	size_t caplen;
 	int fd_raw[MAX_CARDS]; 
 	struct wif * wi[MAX_CARDS];
-	char * iface[MAX_CARDS];
 	int ivs_only, found;
 	int freq[2];
 	int num_opts = 0;
@@ -7768,7 +7767,7 @@ int main(int argc, char * argv[])
 	if (lopt.s_iface != NULL)
 	{
 		/* initialize cards */
-		lopt.num_cards = init_cards(lopt.s_iface, iface, wi);
+		lopt.num_cards = init_cards(lopt.s_iface, wi);
 
 		if (lopt.num_cards <= 0 || lopt.num_cards >= MAX_CARDS)
 		{
