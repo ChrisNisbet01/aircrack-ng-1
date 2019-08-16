@@ -5164,10 +5164,14 @@ static void handle_window_changed_event(struct local_options const * const optio
     }
 }
 
+static void restore_terminal(void)
+{
+	reset_term();
+	show_cursor();
+}
+
 static void handle_terminate_event(struct local_options * const options)
 {
-    show_cursor();
-    reset_term();
     fprintf(stdout, "Quitting...\n");
     fflush(stdout); 
 
@@ -5213,8 +5217,8 @@ static void sighandler(int signum)
 		fprintf(stderr,
 				"Caught signal 11 (SIGSEGV). Please"
 				" contact the author!\n\n");
-		show_cursor();
 		fflush(stdout);
+		restore_terminal();
 		exit(1);
 	}
 }
@@ -7873,8 +7877,7 @@ int main(int argc, char * argv[])
 				}
 				perror("select failed");
 
-				/* Restore terminal */
-				show_cursor();
+				restore_terminal();
 
 				return EXIT_FAILURE;
 			}
@@ -7927,8 +7930,7 @@ int main(int argc, char * argv[])
                         wi[i] = reopen_card(wi[i]);
 						if (wi[i] == NULL)
 						{
-							/* Restore terminal */
-							show_cursor();
+							restore_terminal(); 
 							exit(EXIT_FAILURE);
 						}
 
@@ -8010,8 +8012,7 @@ int main(int argc, char * argv[])
 
 	oui_list_free(&lopt.manufacturer_list);
 
-	reset_term();
-	show_cursor();
+	restore_terminal();
 
 	return EXIT_SUCCESS;
 }
