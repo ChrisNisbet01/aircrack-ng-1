@@ -440,12 +440,16 @@ static THREAD_ENTRY(input_thread)
 			quitting_event_ts = time(NULL);
 
 			if (++quitting > 1) //-V1051
+			{
 				lopt.do_exit = 1;
+            }
 			else
+			{
 				snprintf(
-					lopt.message,
-					sizeof(lopt.message),
-					"][ Are you sure you want to quit? Press Q again to quit.");
+                    lopt.message,
+                    sizeof(lopt.message),
+                    "][ Are you sure you want to quit? Press Q again to quit.");
+            }
 		}
 
 		if (keycode == KEY_o)
@@ -1039,7 +1043,7 @@ static void update_rx_quality(void)
 	}
 }
 
-static int update_dataps(void)
+static void update_data_packets_per_second(void)
 {
 	struct timeval tv;
 	struct AP_info * ap_cur;
@@ -1089,8 +1093,6 @@ static int update_dataps(void)
 			gettimeofday(&(na_cur->tv), NULL);
 		}
 	}
-
-	return (0);
 }
 
 static void packet_buf_free(struct pkt_buf * const pkt_buf)
@@ -3726,7 +3728,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
     buffer[0] = '\0'; 
 
-	if (lopt.gps_loc[0] || (opt.usegpsd))
+	if (lopt.gps_loc[0] || opt.usegpsd)
 	{
 		// If using GPS then check if we have a valid fix or not and report accordingly
 		if (lopt.gps_loc[0] != 0) //-V550
@@ -7799,7 +7801,7 @@ int main(int argc, char * argv[])
 		{
 			time_slept = 0;
 
-			update_dataps();
+			update_data_packets_per_second();
 
             update_window_size(&lopt.ws);
 
