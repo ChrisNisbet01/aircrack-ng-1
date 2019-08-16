@@ -107,6 +107,9 @@ typedef struct ap_sort_info_st
 	ap_sort_fn ap_sort;
 } ap_sort_info_st; 
 
+/* Possibly only required so that this will link. Referenced 
+ * in communications.c. 
+ */
 struct devices dev;
 
 static const unsigned char llcnull[] = {0, 0, 0, 0};
