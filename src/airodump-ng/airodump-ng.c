@@ -6189,6 +6189,7 @@ done:
 int main(int argc, char * argv[])
 {
 	int program_exit_code;
+    bool had_error = false;
 #define ONE_HOUR (60 * 60)
 #define ONE_MIN (60)
 	int read_pkts = 0; 
@@ -7261,7 +7262,7 @@ int main(int argc, char * argv[])
 
     update_window_size(&lopt, &lopt.ws);
 
-	while (1)
+    while (!lopt.do_exit)
 	{
 		time_t current_time;
 
@@ -7273,7 +7274,7 @@ int main(int argc, char * argv[])
         if (lopt.do_exit)
         {
             /* This flag may have been set by a signal event. */
-            break;
+            continue;
         }
 
 		current_time = time(NULL);
@@ -7333,8 +7334,9 @@ int main(int argc, char * argv[])
 			{
                 if (!update_interface_cards(wi, lopt.num_cards))
                 {
-                    program_exit_code = EXIT_FAILURE;
-                    goto done;
+                    had_error = true; 
+                    lopt.do_exit = true; 
+                    continue;
                 }
 			}
 		}
@@ -7353,11 +7355,16 @@ int main(int argc, char * argv[])
                     &ri, 
                     &pkh);
 
-			if (result == packet_reader_result_skip)
-			{
-                continue;
-			}
-			else if (result == packet_reader_result_done)
+            if (result == packet_reader_result_ok)
+            {
+                read_pkts++;
+
+                static size_t const file_dummy_card_number = 0;
+                dump_add_packet(h80211, packet_length, &ri, file_dummy_card_number);
+
+                pace_packet_reader(&lopt, &prev_tv, &pkh, read_pkts);
+            }
+            else if (result == packet_reader_result_done)
 			{
 				packet_reader_close(lopt.packet_reader_context);
 				lopt.packet_reader_context = NULL;
@@ -7367,15 +7374,7 @@ int main(int argc, char * argv[])
                          "][ Finished reading input file %s.",
                          opt.s_file);
 
-                continue;
 			}
-
-			read_pkts++;
-
-			static size_t const file_dummy_card_number = 0;
-			dump_add_packet(h80211, packet_length, &ri, file_dummy_card_number);
-
-			pace_packet_reader(&lopt, &prev_tv, &pkh, read_pkts);
 		}
 		else if (lopt.s_iface != NULL)
 		{
@@ -7390,6 +7389,7 @@ int main(int argc, char * argv[])
 
             if (result < 0)
             {
+                had_error = true;
                 lopt.do_exit = true;
                 continue;
             }
@@ -7419,7 +7419,7 @@ int main(int argc, char * argv[])
 
 	airodump_shutdown(wi);
 
-	program_exit_code = EXIT_SUCCESS;
+	program_exit_code = had_error ? EXIT_FAILURE : EXIT_SUCCESS;
 
 done:
 	restore_terminal(&lopt);
