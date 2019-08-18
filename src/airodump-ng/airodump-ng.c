@@ -496,7 +496,7 @@ static void sort_aps(
 					/* There's no point in comparing an entry with itself. */
 					continue;
 				}
-				if (sort_info->ap_sort(ap_cur, ap_min, options->sort_inv) < 0)
+				if (ap_sort_compare(sort_info, ap_cur, ap_min, options->sort_inv) < 0)
 				{
 					ap_min = ap_cur;
 				}
@@ -619,7 +619,7 @@ static THREAD_ENTRY(input_thread)
 			lopt.sort_method = ap_sort_method_assign_next(lopt.sort_method);
 			snprintf(lopt.message,
 					 sizeof(lopt.message),
-					 "][ sorting by %s", lopt.sort_method->description);
+					 "][ sorting by %s", ap_sort_method_description(lopt.sort_method));
 			sort_required = true;
 		}
 
