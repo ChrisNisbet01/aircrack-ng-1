@@ -152,7 +152,7 @@ static struct local_options
     mac_address prev_bssid;
 
 	char ** f_essid;
-	int f_essid_count;
+	size_t f_essid_count;
 #ifdef HAVE_PCRE
 	pcre * f_essid_regex;
 #endif
@@ -4373,6 +4373,7 @@ wait_proc(pid_t in, pid_t * out)
 static void
 sigchld_handler(int signum)
 {
+    (void)signum;
     /* Reap zombie processes. */
     pid_t pid;
     int const status = wait_proc(-1, &pid);
@@ -4387,7 +4388,7 @@ static void channel_hopper_data_handler(
     {
         // invalid received data
         fprintf(stderr,
-                "Invalid card value received from hopper process, got %d\n",
+                "Invalid card value received from hopper process, got %zd\n",
                 hopper_data->card);
         goto done;
     }
@@ -4610,12 +4611,12 @@ int send_probe_request(struct wif * const wi)
 	return 0;
 }
 
-static int send_probe_requests(struct wif * wi[], int cards)
+static int send_probe_requests(struct wif * * const wi, size_t num_cards)
 {
 	REQUIRE(wi != NULL);
-	REQUIRE(cards > 0);
+    REQUIRE(num_cards > 0);
 
-	for (size_t i = 0; i < cards; i++)
+	for (size_t i = 0; i < num_cards; i++)
 	{
 		send_probe_request(wi[i]);
 	}
