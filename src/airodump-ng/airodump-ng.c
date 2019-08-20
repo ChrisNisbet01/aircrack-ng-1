@@ -702,6 +702,7 @@ static THREAD_ENTRY(input_thread)
 						 sizeof(lopt.message),
 						 "][ normal sorting order");
 			}
+            sort_required = true;
 		}
 
 		if (keycode == KEY_TAB)
