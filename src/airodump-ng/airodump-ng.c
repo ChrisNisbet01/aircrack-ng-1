@@ -100,8 +100,8 @@
 #include "ap_compare.h"
 #include "channel_hopper.h"
 
-/* Possibly only required so that this will link. Referenced 
- * in communications.c. 
+/* Possibly only required so that this will link. Referenced
+ * in communications.c.
  */
 struct devices dev;
 
@@ -159,14 +159,14 @@ static struct local_options
     /* TODO: Stick all this card specific state into a structure. */
     int channel[MAX_CARDS]; /* current channel #    */
 	int frequency[MAX_CARDS]; /* current frequency #    */
-    size_t max_consecutive_failed_interface_reads; 
+    size_t max_consecutive_failed_interface_reads;
     size_t wi_consecutive_failed_reads[MAX_CARDS];
 
-    size_t num_cards; 
+    size_t num_cards;
 
     int channel_hopper_pipe[2];
 
-    int signal_event_pipe[2]; 
+    int signal_event_pipe[2];
 
 	gps_tracker_context_st gps_context;
 
@@ -233,7 +233,7 @@ static struct local_options
 	int frequency_hop_millisecs;
 
 	char * s_iface; /* source interface to read from */
-	packet_reader_context_st * packet_reader_context;
+	pcap_reader_context_st * pcap_reader_context;
 	struct pcap_file_header pfh_in;
 	int detect_anomaly; /* Detect WIPS protecting WEP in action */
 
@@ -456,8 +456,8 @@ static void sort_aps(
 	struct ap_list_head sorted_list = TAILQ_HEAD_INITIALIZER(sorted_list);
 
 	/* Sort the aps by WHATEVER first, */
-	/* Can't 'sort' (or something better) be used to sort these 
-     * entries? 
+	/* Can't 'sort' (or something better) be used to sort these
+     * entries?
      */
 
 	while (TAILQ_FIRST(&options->ap_list) != NULL)
@@ -501,8 +501,8 @@ static void sort_aps(
 				}
 			}
 
-            /* Put sorted entries at the tail of the list. Dump_print() 
-             * works from the tail to the head of the list. 
+            /* Put sorted entries at the tail of the list. Dump_print()
+             * works from the tail to the head of the list.
              */
             TAILQ_REMOVE(&options->ap_list, ap_min, entry);
             TAILQ_INSERT_TAIL(&sorted_list, ap_min, entry);
@@ -510,9 +510,9 @@ static void sort_aps(
 
 	}
 
-	/* The original list is now empty. 
-	 * Concatenate the sorted list to it so that it contains the 
-	 * sorted entries. 
+	/* The original list is now empty.
+	 * Concatenate the sorted list to it so that it contains the
+	 * sorted entries.
 	 */
 	TAILQ_CONCAT(&options->ap_list, &sorted_list, entry);
 }
@@ -559,9 +559,9 @@ static void sort_stas(struct local_options * const options)
 		TAILQ_INSERT_TAIL(&sorted_list, st_min, entry);
 	}
 
-	/* The original list is now empty. 
-	 * Concatenate the sorted list to it so that it contains the 
-	 * sorted entries. 
+	/* The original list is now empty.
+	 * Concatenate the sorted list to it so that it contains the
+	 * sorted entries.
 	 */
 	TAILQ_CONCAT(&options->sta_list, &sorted_list, entry);
 }
@@ -767,8 +767,8 @@ static THREAD_ENTRY(input_thread)
 					 "][ reset selection to default");
 		}
 
-		if (lopt.do_exit == 0 
-			&& !lopt.do_pause 
+		if (lopt.do_exit == 0
+			&& !lopt.do_pause
 			&& lopt.should_update_stdout)
 		{
 			if (sort_required || lopt.do_sort_always)
@@ -895,9 +895,9 @@ int is_filtered_essid(uint8_t const * const essid)
 	REQUIRE(essid != NULL);
 
 	int ret = 0;
-    /* FIXME - Remove the dependency on lopt. 
-     * This is called by dump routines, so can't be static as it 
-     * stands. 
+    /* FIXME - Remove the dependency on lopt.
+     * This is called by dump routines, so can't be static as it
+     * stands.
      */
 	if (lopt.f_essid != NULL)
 	{
@@ -976,7 +976,7 @@ static void update_rx_quality(void)
 				// captured; extrapolated by assuming a constant framerate
 				if (capt_time > 0 && miss_time > 200000)
 				{
-					int const missed_frames = 
+					int const missed_frames =
 						(int) (((float) miss_time / (float) capt_time)
 								 * ((float) ap_cur->fcapt
 									+ (float) ap_cur->fmiss));
@@ -1102,12 +1102,12 @@ static int packet_list_free(struct pkt_list_head * const pkt_list)
 }
 
 static void ap_purge_old_packets(
-	struct AP_info * const ap_cur, 
+	struct AP_info * const ap_cur,
 	struct timeval const * const current_time,
 	unsigned long const age_limit_millisecs)
 {
 	struct pkt_buf * pkt_buf;
-	struct pkt_buf * temp; 
+	struct pkt_buf * temp;
 	bool found_old_packet = false;
 
 	TAILQ_FOREACH_SAFE(pkt_buf, &ap_cur->pkt_list, entry, temp)
@@ -1153,8 +1153,8 @@ static void aps_purge_old_packets(
 
 static int
 list_add_packet(
-	struct pkt_list_head * const pkt_list, 
-	int const length, 
+	struct pkt_list_head * const pkt_list,
+	int const length,
 	unsigned char * packet)
 {
 	struct pkt_buf * new_pkt_buf;
@@ -1275,7 +1275,7 @@ static void na_info_list_free(struct na_list_head * const list_head)
 }
 
 static struct NA_info * na_info_lookup(
-	struct na_list_head * const list, 
+	struct na_list_head * const list,
 	mac_address const * const mac)
 {
 	struct NA_info * na_cur;
@@ -1373,11 +1373,11 @@ static struct ST_info * st_info_new(mac_address const * const stmac)
 
 	MAC_ADDRESS_COPY(&st_cur->stmac, stmac);
 
-    st_cur->manuf = 
+    st_cur->manuf =
         get_manufacturer_by_oui(
             lopt.manufacturer_list,
-            st_cur->stmac.addr[0], 
-            st_cur->stmac.addr[1], 
+            st_cur->stmac.addr[0],
+            st_cur->stmac.addr[1],
             st_cur->stmac.addr[2]);
 
 	st_cur->nb_pkt = 0;
@@ -1416,7 +1416,7 @@ done:
 }
 
 static struct AP_info * ap_info_lookup(
-	struct ap_list_head * ap_list, 
+	struct ap_list_head * ap_list,
 	mac_address const * const mac)
 {
 	struct AP_info * ap_cur;
@@ -1451,7 +1451,7 @@ static void free_stas_with_this_base_ap(
 }
 
 static void ap_info_free(
-    struct AP_info * const ap_cur, 
+    struct AP_info * const ap_cur,
     struct sta_list_head * const sta_list)
 {
 	free_stas_with_this_base_ap(sta_list, ap_cur);
@@ -1475,11 +1475,11 @@ static struct AP_info * ap_info_new(mac_address const * const bssid)
 	}
 
 	MAC_ADDRESS_COPY(&ap_cur->bssid, bssid);
-    ap_cur->manuf = 
+    ap_cur->manuf =
         get_manufacturer_by_oui(
             lopt.manufacturer_list,
             ap_cur->bssid.addr[0],
-            ap_cur->bssid.addr[1], 
+            ap_cur->bssid.addr[1],
             ap_cur->bssid.addr[2]);
 
 	ap_cur->nb_pkt = 0;
@@ -1631,7 +1631,7 @@ static void purge_old_nas(
 }
 
 static void purge_old_nodes(
-    struct local_options * const options, 
+    struct local_options * const options,
     size_t const max_age)
 {
 	if (max_age == 0) /* No limit. */
@@ -1651,13 +1651,13 @@ done:
 }
 
 static void write_cap_file(
-	FILE * fp, 
-	uint8_t const * const h80211, 
+	FILE * fp,
+	uint8_t const * const h80211,
 	size_t const caplen,
 	int32_t const ri_power)
 {
 	struct pcap_pkthdr pkh;
-	struct timeval tv; 
+	struct timeval tv;
 
 	if (fp == NULL || caplen < 10)
 	{
@@ -1716,11 +1716,11 @@ static void dump_add_packet(
 	int num_xor = 0;
 
 	struct AP_info * ap_cur = NULL;
-	struct ST_info * st_cur = NULL; 
+	struct ST_info * st_cur = NULL;
 
 	MAC_ADDRESS_CLEAR(&bssid);
 	MAC_ADDRESS_CLEAR(&stmac);
-	MAC_ADDRESS_CLEAR(&namac); 
+	MAC_ADDRESS_CLEAR(&namac);
 
 	/* skip all non probe response frames in active scanning simulation mode */
 	if (lopt.active_scan_sim > 0 && h80211[0] != 0x50)
@@ -1790,7 +1790,7 @@ static void dump_add_packet(
         }
 	}
 
-	ap_list_lock_acquire(&lopt); 
+	ap_list_lock_acquire(&lopt);
 
 	/* update our chained list of access points */
 	ap_cur = ap_info_lookup(&lopt.ap_list, &bssid);
@@ -1811,7 +1811,7 @@ static void dump_add_packet(
 		remove_namac(&bssid);
 	}
 
-	ap_list_lock_release(&lopt); 
+	ap_list_lock_release(&lopt);
 
 	/* update the last time seen */
 
@@ -1958,7 +1958,7 @@ static void dump_add_packet(
 		remove_namac(&stmac);
 	}
 
-	ap_list_lock_release(&lopt); 
+	ap_list_lock_release(&lopt);
 
     if (st_cur->base == NULL || !MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
     {
@@ -2314,15 +2314,15 @@ skip_probe:
 				ap_cur->ac_channel.short_gi_80 = (uint8_t)((p[3] / 32) % 2);
 				ap_cur->ac_channel.short_gi_160 = (uint8_t)((p[3] / 64) % 2);
 
-				/* XXX - How can this result ever be anything other than 0. 
-				 * 0b11000 % 2 == 0 doesn't it? 
+				/* XXX - How can this result ever be anything other than 0.
+				 * 0b11000 % 2 == 0 doesn't it?
 				 */
 				ap_cur->ac_channel.mu_mimo = (uint8_t)((p[4] & 0x18) % 2);
 
 				// A few things indicate Wave 2: MU-MIMO, 80+80 Channels
-				/* FIXME - is use of the || logical operator really what is 
-				 * wanted? Why the % 2 at the end if the result of the || is 
-				 * only ever 0 or 1? 
+				/* FIXME - is use of the || logical operator really what is
+				 * wanted? Why the % 2 at the end if the result of the || is
+				 * only ever 0 or 1?
 				 */
 				ap_cur->ac_channel.wave_2
 					= (uint8_t)((ap_cur->ac_channel.mu_mimo
@@ -2487,7 +2487,7 @@ skip_probe:
 			}
 
 			type = p[0];
-			length = p[1]; 
+			length = p[1];
 
 			// Find WPA and RSN tags
 			if ((type == 0xDD && (length >= 8)
@@ -3449,7 +3449,7 @@ static bool IsAp2BeSkipped(struct AP_info * ap_cur)
 		goto done;
 	}
 
-	if (ap_cur->security != 0 
+	if (ap_cur->security != 0
         && lopt.f_encrypt != 0
 		&& ((ap_cur->security & lopt.f_encrypt) == 0))
 	{
@@ -3526,7 +3526,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 		TAILQ_FOREACH_REVERSE(ap_cur, &lopt.ap_list, ap_list_head, entry)
 		{
 			lopt.maxaps++;
-			if (ap_cur->nb_pkt < 2 
+			if (ap_cur->nb_pkt < 2
                 || (time(NULL) - ap_cur->tlast) > lopt.berlin
 				|| MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
 			{
@@ -3571,7 +3571,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 		}
 	}
 
-    buffer[0] = '\0'; 
+    buffer[0] = '\0';
 
 	if (opt.usegpsd)
 	{
@@ -3732,7 +3732,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 		TAILQ_FOREACH_REVERSE(ap_cur, &lopt.ap_list, ap_list_head, entry)
 		{
 			/* skip APs with only one packet, or those older than 2 min.
-			 * always skip if bssid == broadcast*  
+			 * always skip if bssid == broadcast*
 			 */
 			if (IsAp2BeSkipped(ap_cur))
 			{
@@ -3768,23 +3768,23 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 					else if (selection_direction_down == lopt.en_selection_direction)
 					{
 						//DOWN arrow was last pressed
-						ap_tmp = TAILQ_PREV(ap_cur, ap_list_head, entry); 
+						ap_tmp = TAILQ_PREV(ap_cur, ap_list_head, entry);
 						if (ap_tmp != NULL)
 						{
 							while ((NULL != (lopt.p_selected_ap = ap_tmp))
 								   && IsAp2BeSkipped(ap_tmp))
 							{
-								ap_tmp = TAILQ_PREV(ap_tmp, ap_list_head, entry); 
+								ap_tmp = TAILQ_PREV(ap_tmp, ap_list_head, entry);
 							}
 						}
 						if (ap_tmp == NULL) //we have reached the last element in the list, so go in another direction
 						{ //upon we have an AP that is not skipped
-							ap_tmp = TAILQ_NEXT(ap_cur, entry); 
+							ap_tmp = TAILQ_NEXT(ap_cur, entry);
 							if (ap_tmp != NULL)
 							{
 								while ((NULL != (lopt.p_selected_ap = ap_tmp))
 									   && IsAp2BeSkipped(ap_tmp))
-									ap_tmp = TAILQ_NEXT(ap_tmp, entry); 
+									ap_tmp = TAILQ_NEXT(ap_tmp, entry);
 							}
 						}
 					}
@@ -3795,8 +3795,8 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 			num_ap++;
 
-            /* FIXME - start_print_ap is always 1, so all APs are always 
-             * printed. Is that what is desired? 
+            /* FIXME - start_print_ap is always 1, so all APs are always
+             * printed. Is that what is desired?
              */
 			if (num_ap < lopt.start_print_ap)
 			{
@@ -4124,7 +4124,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 					if (ap_cur->manuf == NULL)
 					{
-						ap_cur->manuf = 
+						ap_cur->manuf =
                             get_manufacturer_by_oui(
                                 lopt.manufacturer_list,
                                 ap_cur->bssid.addr[0],
@@ -4184,7 +4184,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 		TAILQ_FOREACH_REVERSE(ap_cur, &lopt.ap_list, ap_list_head, entry)
 		{
-			if (ap_cur->nb_pkt < 2 
+			if (ap_cur->nb_pkt < 2
 				|| (time(NULL) - ap_cur->tlast) > lopt.berlin)
 			{
 				continue;
@@ -4235,8 +4235,8 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 				num_sta++;
 
-                /* FIXME - start_print_sta is always 1, so only one STA is ever 
-                 * printed. Is that what is desired? 
+                /* FIXME - start_print_sta is always 1, so only one STA is ever
+                 * printed. Is that what is desired?
                  */
 				if (lopt.start_print_sta > num_sta)
 				{
@@ -4498,7 +4498,7 @@ static void handle_terminate_event(struct local_options * const options)
 	if (options->should_update_stdout)
 	{
 		fprintf(stdout, "Quitting...\n");
-        fflush(stdout); 
+        fflush(stdout);
 	}
 
     lopt.do_exit = 1;
@@ -4667,10 +4667,10 @@ static int send_probe_requests(struct wif * * const wi, size_t num_cards)
 }
 
 size_t get_channel_count(
-	int const * const channels, 
+	int const * const channels,
 	bool const count_valid_channels_only)
 {
-	size_t total_channel_count = 0; 
+	size_t total_channel_count = 0;
     size_t valid_channel_count = 0;
 
 	while (channels[total_channel_count] != 0)
@@ -4682,9 +4682,9 @@ size_t get_channel_count(
 		}
 	}
 
-	int const channel_count = 
-		count_valid_channels_only 
-			? valid_channel_count 
+	int const channel_count =
+		count_valid_channels_only
+			? valid_channel_count
 			: total_channel_count;
 
 	return channel_count;
@@ -4749,7 +4749,7 @@ static bool is_invalid_frequency(
         }
     }
 
-    is_invalid = true; 
+    is_invalid = true;
 
 done:
     return is_invalid;
@@ -4759,12 +4759,12 @@ done:
 
 static int getchannels(const char * optarg)
 {
-    int chan_cur = 0; 
-    int chan_first = 0; 
+    int chan_cur = 0;
+    int chan_first = 0;
     int chan_last = 0;
-    static size_t const chan_max = 128; 
+    static size_t const chan_max = 128;
     size_t chan_remain = chan_max;
-    char * optchan = NULL; 
+    char * optchan = NULL;
     char * optc;
 	char * token = NULL;
 	int * tmp_channels;
@@ -4895,7 +4895,7 @@ static int getchannels(const char * optarg)
 /* parse a string, for example "1,2,3-7,11" */
 
 static int getfrequencies(
-    struct detected_frequencies_st * const detected_frequencies, 
+    struct detected_frequencies_st * const detected_frequencies,
     const char * optarg)
 {
 	unsigned int i = 0, freq_cur = 0, freq_first = 0, freq_last = 0,
@@ -4949,7 +4949,7 @@ static int getfrequencies(
 					}
 					for (i = freq_first; i <= freq_last; i++)
 					{
-                        if (!is_invalid_frequency(detected_frequencies, i) 
+                        if (!is_invalid_frequency(detected_frequencies, i)
                             && freq_remain > 0)
 						{
 							tmp_frequencies[freq_max - freq_remain] = i;
@@ -4986,7 +4986,7 @@ static int getfrequencies(
 
 			if (sscanf(token, "%u", &freq_cur) != EOF)
 			{
-                if (!is_invalid_frequency(detected_frequencies, freq_cur) 
+                if (!is_invalid_frequency(detected_frequencies, freq_cur)
                     && freq_remain > 0)
 				{
 					tmp_frequencies[freq_max - freq_remain] = freq_cur;
@@ -5048,8 +5048,8 @@ static int getfrequencies(
 }
 
 static bool name_already_specified(
-	char const * const interface_name, 
-	char const * const * const iface, 
+	char const * const interface_name,
+	char const * const * const iface,
 	size_t if_count)
 {
 	bool already_specified;
@@ -5070,7 +5070,7 @@ done:
 }
 
 static int initialise_cards(
-	const char * cardstr, 
+	const char * cardstr,
 	struct wif * * wi)
 {
 	char * buffer;
@@ -5152,8 +5152,8 @@ static struct wif * reopen_card(struct wif * const old)
     struct wif * new_wi;
 	char ifnam[MAX_IFACE_NAME];
 
-    /* The interface name needs to be saved because closing the 
-     * card frees all resources associated with the wi. 
+    /* The interface name needs to be saved because closing the
+     * card frees all resources associated with the wi.
      */
     strlcpy(ifnam, wi_get_ifname(old), sizeof ifnam);
 
@@ -5254,14 +5254,14 @@ static struct wif * check_for_monitor_mode_on_card(
     write_monitor_mode_message(
         lopt.message,
         sizeof(lopt.message),
-        wi_get_ifname(wi)); 
+        wi_get_ifname(wi));
 
 done:
     return new_wi;
 }
 
 static bool check_for_monitor_mode_on_cards(
-    struct wif * * const wi, 
+    struct wif * * const wi,
     size_t const num_cards)
 {
     bool success;
@@ -5288,7 +5288,7 @@ done:
 }
 
 static bool check_channel_on_card(
-    struct wif * const wi, 
+    struct wif * const wi,
     int const desired_channel)
 {
     bool changed_channel;
@@ -5315,7 +5315,7 @@ static bool check_channel_on_card(
     write_fixed_channel_message(lopt.message,
                                 sizeof(lopt.message),
                                 wi_get_ifname(wi),
-                                current_channel); 
+                                current_channel);
 
     changed_channel = true;
 
@@ -5324,7 +5324,7 @@ done:
 }
 
 static void check_channel_on_cards(
-    struct wif * * const wi, 
+    struct wif * * const wi,
     int const * const current_channels,
     size_t const num_cards)
 {
@@ -5361,7 +5361,7 @@ static bool check_frequency_on_card(
                                   wi_get_ifname(wi),
                                   current_frequency);
 
-    changed_frequency = true; 
+    changed_frequency = true;
 
 done:
     return changed_frequency;
@@ -5369,7 +5369,7 @@ done:
 
 static void check_frequency_on_cards(
     struct wif * * const wi,
-    int const * const current_frequencies, 
+    int const * const current_frequencies,
     size_t const num_cards)
 {
     for (size_t i = 0; i < num_cards; i++)
@@ -5379,7 +5379,7 @@ static void check_frequency_on_cards(
 }
 
 static bool update_interface_cards(
-    struct wif * * const wi, 
+    struct wif * * const wi,
     size_t const num_cards,
     bool const single_channel,
     int const * const current_channels,
@@ -5410,13 +5410,13 @@ done:
 }
 
 static void detect_frequency_range(
-    struct wif * wi, 
+    struct wif * wi,
     struct detected_frequencies_st * const detected_frequencies,
-    int const start_freq, 
+    int const start_freq,
     int const end_freq)
 {
-    for (int freq = start_freq; 
-          detected_frequencies->count < detected_frequencies->table_size && freq <= end_freq; 
+    for (int freq = start_freq;
+          detected_frequencies->count < detected_frequencies->table_size && freq <= end_freq;
           freq += 5)
     {
         if (wi_set_freq(wi, freq) == 0)
@@ -5462,7 +5462,7 @@ static void detected_frequencies_cleanup(
 
 
 static void detect_frequencies(
-    struct wif * wi, 
+    struct wif * wi,
     struct detected_frequencies_st * const detected_frequencies)
 {
 	REQUIRE(wi != NULL);
@@ -5573,16 +5573,16 @@ static bool start_child_process(int * const pipe_handles)
     {
         /* This is the child process. */
 
-        /* Close the read end of the communications pipe as the child 
-         * only writes data for the parent to read. 
+        /* Close the read end of the communications pipe as the child
+         * only writes data for the parent to read.
          */
         close(pipe_handles[0]);
     }
     else
     {
         /* This is the parent process. */
-        /* Close the write end of the communications pipe as the parent 
-         * only reads data written by the child. 
+        /* Close the write end of the communications pipe as the parent
+         * only reads data written by the child.
          */
         close(pipe_handles[1]);
     }
@@ -5602,7 +5602,7 @@ static bool start_frequency_hopper_process(
 
     if (result == 0)
     {
-        /* reopen cards. This way parent & child don't share resources for 
+        /* reopen cards. This way parent & child don't share resources for
         * accessing the card (e.g. file descriptors) which may cause
         * problems.  -sorbo
         */
@@ -5614,8 +5614,8 @@ static bool start_frequency_hopper_process(
 
         drop_privileges();
 
-        frequency_hopper(options->channel_hopper_pipe[1], 
-                         wi, 
+        frequency_hopper(options->channel_hopper_pipe[1],
+                         wi,
                          options->num_cards,
                          frequency_count,
                          lopt.channel_switching_method,
@@ -5655,9 +5655,9 @@ static bool start_channel_hopper_process(
         drop_privileges();
 
         channel_hopper(options->channel_hopper_pipe[1],
-                       wi, 
-                       options->num_cards, 
-                       channel_count, 
+                       wi,
+                       options->num_cards,
+                       channel_count,
                        lopt.channel_switching_method,
                        lopt.channels,
                        lopt.channel,
@@ -5674,7 +5674,7 @@ static bool start_channel_hopper_process(
 
     bool const child_started = result > 0;
 
-    return child_started; 
+    return child_started;
 }
 
 static bool pipe_has_data_ready(int const fd)
@@ -5716,7 +5716,7 @@ done:
 
 static bool pipe_read(int const fd, void * const data, size_t const data_size)
 {
-    /* data_size is the expected number of bytes to read. */ 
+    /* data_size is the expected number of bytes to read. */
     bool have_read_data;
 
     if (!pipe_has_data_ready(fd))
@@ -5745,7 +5745,7 @@ static void check_for_channel_hopper_data(struct local_options * const options)
     struct channel_hopper_data_st hopper_data = { 0 };
 
     while (pipe_read(options->channel_hopper_pipe[0],
-                     &hopper_data, 
+                     &hopper_data,
                      sizeof hopper_data))
     {
         channel_hopper_data_handler(options, &hopper_data);
@@ -5753,7 +5753,7 @@ static void check_for_channel_hopper_data(struct local_options * const options)
 }
 
 static void process_event(
-    struct local_options * const options, 
+    struct local_options * const options,
     signal_event_t const event)
 {
     switch (event)
@@ -5774,8 +5774,8 @@ static void check_for_signal_events(struct local_options * const options)
 {
     int event = 0;
 
-    while (pipe_read(options->signal_event_pipe[0], 
-                     &event, 
+    while (pipe_read(options->signal_event_pipe[0],
+                     &event,
                      sizeof event))
     {
         process_event(options, event);
@@ -5799,7 +5799,7 @@ static void sta_list_free(struct sta_list_head * const sta_list)
 {
 	while (TAILQ_FIRST(sta_list) != NULL)
 	{
-		struct ST_info * const st_cur = TAILQ_FIRST(sta_list); 
+		struct ST_info * const st_cur = TAILQ_FIRST(sta_list);
 
 		TAILQ_REMOVE(sta_list, st_cur, entry);
 
@@ -5842,7 +5842,7 @@ static bool dump_initialise_custom_dump_formats(
 	bool success;
 	char * ofn;
 	size_t ofn_len;
-	size_t const ADDED_LENGTH = 17; /* FIXME: Work out the required length from 
+	size_t const ADDED_LENGTH = 17; /* FIXME: Work out the required length from
 									 *  the extensions etc
 									 */
 
@@ -5932,12 +5932,12 @@ static bool dump_initialise_custom_dump_formats(
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, WIFI_EXT);
 
-		lopt.wifi_dump_context = 
+		lopt.wifi_dump_context =
 			dump_open(dump_type_wifi_scanner,
                       ofn,
-                      sys_name, 
-                      location_name, 
-                      filter_seconds, 
+                      sys_name,
+                      location_name,
+                      filter_seconds,
                       file_reset_seconds,
                       airodump_start_time,
 					  use_gpsd);
@@ -6043,7 +6043,7 @@ static void close_output_files(void)
 }
 
 static void do_quit_request_timeout_check(
-    char * const message_buffer, 
+    char * const message_buffer,
     size_t message_buffer_size)
 {
 	if (quitting > 0)
@@ -6060,26 +6060,21 @@ static void do_quit_request_timeout_check(
 	}
 }
 
-static void pace_packet_reader(
+static void pace_pcap_reader(
 	struct local_options const * const options,
-	struct timeval * prev_tv,
-	struct pcap_pkthdr const * const pkh,
+	struct timeval * const previous_timestamp,
+	struct timeval * const packet_timestamp,
 	int const read_pkts)
 {
-    /* Control the speed that the packets are read from the file 
-     * to simulate the rate they were captured at. 
+    /* Control the speed that the packets are read from the file
+     * to simulate the rate they were captured at.
      */
-	if (options->relative_time 
-        && prev_tv->tv_sec != 0
-		&& prev_tv->tv_usec != 0)
+	if (options->relative_time
+        && previous_timestamp->tv_sec != 0
+		&& previous_timestamp->tv_usec != 0)
 	{
-		struct timeval pkt_tv = {
-			.tv_sec = pkh->tv_sec,
-			.tv_usec = pkh->tv_usec
-		};
-
 		const useconds_t usec_diff
-			= (useconds_t)time_diff(prev_tv, &pkt_tv);
+			= (useconds_t)time_diff(previous_timestamp, packet_timestamp);
 
 		if (usec_diff > 0)
 		{
@@ -6092,8 +6087,7 @@ static void pace_packet_reader(
 	}
 
     // track the packet's timestamp
-	prev_tv->tv_sec = pkh->tv_sec;
-	prev_tv->tv_usec = pkh->tv_usec;
+	*previous_timestamp = *packet_timestamp;
 }
 
 static void airodump_shutdown(struct wif * * const wi)
@@ -6112,7 +6106,7 @@ static void airodump_shutdown(struct wif * * const wi)
 	free(opt.prefix);
 	free(opt.f_cap_name);
 
-	packet_reader_close(lopt.packet_reader_context);
+	pcap_reader_close(lopt.pcap_reader_context);
 
 #ifdef HAVE_PCRE
 	if (lopt.f_essid_regex)
@@ -6123,8 +6117,8 @@ static void airodump_shutdown(struct wif * * const wi)
 
 	close_cards(wi, lopt.num_cards);
 
-	/* FIXME: - Shouldn't need to check this flag. Just check 
-	 * pointer values etc. 
+	/* FIXME: - Shouldn't need to check this flag. Just check
+	 * pointer values etc.
 	 */
 	if (opt.record_data)
 	{
@@ -6150,8 +6144,8 @@ static void airodump_shutdown(struct wif * * const wi)
 }
 
 static int capture_packet_from_cards(
-    struct local_options * const options, 
-    struct wif * * wi, 
+    struct local_options * const options,
+    struct wif * * wi,
     size_t num_cards,
     uint8_t * const packet_buffer,
     size_t packet_buffer_size)
@@ -6242,7 +6236,7 @@ int main(int argc, char * argv[])
     bool had_error = false;
 #define ONE_HOUR (60 * 60)
 #define ONE_MIN (60)
-	int read_pkts = 0; 
+	int read_pkts = 0;
 
 	long time_slept;
 	long cycle_time;
@@ -6264,8 +6258,8 @@ int main(int argc, char * argv[])
 	int pcreerroffset;
 #endif
 
-	time_t tt1; 
-	time_t tt2; 
+	time_t tt1;
+	time_t tt2;
 	time_t start_time;
 
 	struct rx_info ri;
@@ -6276,7 +6270,7 @@ int main(int argc, char * argv[])
 	struct timeval tv2;
 	struct timeval tv3;
 	struct timeval last_active_scan_timestamp;
-	struct timeval prev_tv = {.tv_sec = 0, .tv_usec = 0 };
+	struct timeval previous_timestamp = {.tv_sec = 0, .tv_usec = 0 };
 	struct tm * lt;
 
 	static const struct option long_options[]
@@ -6377,7 +6371,7 @@ int main(int argc, char * argv[])
     lopt.frequency_hop_millisecs = DEFAULT_HOPFREQ;
 	opt.s_file = NULL;
 	lopt.s_iface = NULL;
-	lopt.packet_reader_context = NULL;
+	lopt.pcap_reader_context = NULL;
 	lopt.detect_anomaly = 0;
 	lopt.airodump_start_time = NULL;
     lopt.manufacturer_list = NULL;
@@ -6395,10 +6389,10 @@ int main(int argc, char * argv[])
 	opt.output_format_log_csv = 1;
     opt.output_format_wifi_scanner = 1;
 
-    lopt.wifi_dump_context = NULL; 
-	lopt.csv_dump_context = NULL; 
-	lopt.kismet_csv_dump_context = NULL; 
-	lopt.kismet_netxml_dump_context = NULL; 
+    lopt.wifi_dump_context = NULL;
+	lopt.csv_dump_context = NULL;
+	lopt.kismet_csv_dump_context = NULL;
+	lopt.kismet_netxml_dump_context = NULL;
 
 	lopt.file_write_interval = 5; // Write file every 5 seconds by default
 	lopt.maxsize_wps_seen = 6;
@@ -6523,7 +6517,7 @@ int main(int argc, char * argv[])
 
 				printf("\"%s --help\" for help.\n", argv[0]);
 				program_exit_code = EXIT_FAILURE;
-				goto done; 
+				goto done;
 
 			case 'K':
 			{
@@ -6764,7 +6758,7 @@ int main(int argc, char * argv[])
 
 			case 's':
 
-                if (strtol(optarg, NULL, 10) >= channel_switching_method_COUNT 
+                if (strtol(optarg, NULL, 10) >= channel_switching_method_COUNT
                     || errno == EINVAL)
 				{
 					airodump_usage();
@@ -6900,15 +6894,15 @@ int main(int argc, char * argv[])
             case 'X':
                 strlcpy(lopt.sys_name, optarg, sizeof lopt.sys_name);
                 break;
-                    
+
             case 'y':
                 strlcpy(lopt.loc_name, optarg, sizeof lopt.loc_name);
                 break;
-                    
+
             case 'F':
                 lopt.filter_seconds = strtoul(optarg, NULL, 10);
                 break;
-                   
+
             case 'P':
                 reset_val = strtoul(optarg, NULL, 10);
                 lopt.file_reset_seconds = reset_val * ONE_MIN;
@@ -6917,7 +6911,7 @@ int main(int argc, char * argv[])
             case 'v':
 				lopt.max_node_age = strtoul(optarg, NULL, 10) * ONE_MIN;
                 break;
-                    
+
             case 'o':
 
 				// Reset output format if it's the first time the option is
@@ -7058,7 +7052,7 @@ int main(int argc, char * argv[])
 			case 'H':
 				airodump_usage();
 				program_exit_code = EXIT_FAILURE;
-				goto done; 
+				goto done;
 
 			case 'x':
 
@@ -7152,14 +7146,14 @@ int main(int argc, char * argv[])
 
 		if (lopt.freqoption && lopt.freqstring != NULL) // use frequencies
 		{
-            struct detected_frequencies_st detected_frequencies; 
+            struct detected_frequencies_st detected_frequencies;
 
             detect_frequencies(wi[0], &detected_frequencies);
 
-            lopt.frequency[0] = 
+            lopt.frequency[0] =
                 getfrequencies(&detected_frequencies, lopt.freqstring);
 
-            detected_frequencies_cleanup(&detected_frequencies); 
+            detected_frequencies_cleanup(&detected_frequencies);
 
 			if (lopt.frequency[0] == invalid_frequency)
 			{
@@ -7218,8 +7212,8 @@ int main(int argc, char * argv[])
     /* Check if an input file was specified. */
 	if (opt.s_file != NULL)
 	{
-		lopt.packet_reader_context = packet_reader_open(opt.s_file);
-		if (lopt.packet_reader_context == NULL)
+		lopt.pcap_reader_context = pcap_reader_open(opt.s_file);
+		if (lopt.pcap_reader_context == NULL)
 		{
 			perror("open failed");
 			program_exit_code = EXIT_FAILURE;
@@ -7228,7 +7222,7 @@ int main(int argc, char * argv[])
 	}
 
 	/* Create start time string for kismet netxml file */
-	start_time = time(NULL); 
+	start_time = time(NULL);
 	lopt.airodump_start_time = strdup(ctime(&start_time));
 	ALLEGE(lopt.airodump_start_time != NULL);
 	// remove new line
@@ -7246,9 +7240,9 @@ int main(int argc, char * argv[])
 			goto done;
 		}
 
-        /* FIXME - needed while there are two methods of opening 
-         * update files. The method above is used by multiple apps that 
-         * don't support some of the output formats. 
+        /* FIXME - needed while there are two methods of opening
+         * update files. The method above is used by multiple apps that
+         * don't support some of the output formats.
          */
 		if (!dump_initialise_custom_dump_formats(lopt.dump_prefix,
 												 lopt.sys_name,
@@ -7270,8 +7264,8 @@ int main(int argc, char * argv[])
     /* Start the GPS tracker if requested. */
 	if (opt.usegpsd)
 	{
-		gps_tracker_initialise(&lopt.gps_context, 
-                               lopt.dump_prefix, 
+		gps_tracker_initialise(&lopt.gps_context,
+                               lopt.dump_prefix,
                                opt.f_index,
 							   opt.f_gps,
                                &lopt.do_exit);
@@ -7382,47 +7376,49 @@ int main(int argc, char * argv[])
 
 			if (lopt.s_iface != NULL)
 			{
-                if (!update_interface_cards(wi, 
-                                            lopt.num_cards, 
-                                            lopt.singlechan, 
+                if (!update_interface_cards(wi,
+                                            lopt.num_cards,
+                                            lopt.singlechan,
                                             lopt.channel,
                                             lopt.singlefreq,
                                             lopt.frequency))
                 {
-                    had_error = true; 
-                    lopt.do_exit = true; 
+                    had_error = true;
+                    lopt.do_exit = true;
                     continue;
                 }
 			}
 		}
 
-		if (lopt.packet_reader_context != NULL)
+		if (lopt.pcap_reader_context != NULL)
 		{
             /* Read one packet from a file. */
-			struct pcap_pkthdr pkh;
+            struct timeval packet_timestamp;
 			size_t packet_length;
-			packet_reader_result_t const result =
-				packet_reader_read(
-                    lopt.packet_reader_context, 
-                    h80211, 
-                    sizeof h80211, 
-                    &packet_length, 
-                    &ri, 
-                    &pkh);
+			pcap_reader_result_t const result =
+				pcap_read(lopt.pcap_reader_context,
+                          h80211,
+                          sizeof h80211,
+                          &packet_length,
+                          &ri,
+                          &packet_timestamp);
 
-            if (result == packet_reader_result_ok)
+            if (result == pcap_reader_result_ok)
             {
                 read_pkts++;
 
                 static size_t const file_dummy_card_number = 0;
                 dump_add_packet(h80211, packet_length, &ri, file_dummy_card_number);
 
-                pace_packet_reader(&lopt, &prev_tv, &pkh, read_pkts);
+                pace_pcap_reader(&lopt,
+                                 &previous_timestamp,
+                                 &packet_timestamp,
+                                 read_pkts);
             }
-            else if (result == packet_reader_result_done)
+            else if (result == pcap_reader_result_done)
 			{
-				packet_reader_close(lopt.packet_reader_context);
-				lopt.packet_reader_context = NULL;
+				pcap_reader_close(lopt.pcap_reader_context);
+				lopt.pcap_reader_context = NULL;
 
                 snprintf(lopt.message,
                          sizeof(lopt.message),
@@ -7434,12 +7430,12 @@ int main(int argc, char * argv[])
 		else if (lopt.s_iface != NULL)
 		{
             /* Read a packet from each interface/card. */
-            int result = 
+            int result =
                 capture_packet_from_cards(
-                    &lopt, 
-                    wi, 
-                    lopt.num_cards, 
-                    h80211, 
+                    &lopt,
+                    wi,
+                    lopt.num_cards,
+                    h80211,
                     sizeof h80211);
 
             if (result < 0)
@@ -7459,7 +7455,7 @@ int main(int argc, char * argv[])
         time_slept += 1000000UL * (tv2.tv_sec - current_time_timestamp.tv_sec)
             + (tv2.tv_usec - current_time_timestamp.tv_usec);
 
-		if (time_slept > REFRESH_RATE 
+		if (time_slept > REFRESH_RATE
             && time_slept > lopt.update_interval_seconds * 1000000)
 		{
 			time_slept = 0;
