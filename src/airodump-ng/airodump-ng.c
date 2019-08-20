@@ -6184,7 +6184,7 @@ static int capture_packet_from_cards(
             else
             {
                 options->wi_consecutive_failed_reads[i] = 0;
-                dump_add_packet(packet_buffer, packet_length, &ri, i);
+                //dump_add_packet(packet_buffer, packet_length, &ri, i);
             }
         }
     }
