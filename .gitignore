@@ -108,3 +108,4 @@ coverage*.info
 *.vpw
 *.vpwhistu
 *.vtg
+*.h.in~
