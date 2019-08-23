@@ -948,11 +948,11 @@ done:
     return is_filtered;
 }
 
-int is_filtered_essid(uint8_t const * const essid)
+bool is_filtered_essid(uint8_t const * const essid)
 {
-	REQUIRE(essid != NULL);
+    bool is_filtered = false;
+    REQUIRE(essid != NULL);
 
-	int ret = 0;
     /* FIXME - Remove the dependency on lopt.
      * This is called by dump routines, so can't be static as it
      * stands.
@@ -963,29 +963,34 @@ int is_filtered_essid(uint8_t const * const essid)
 		{
 			if (strncmp((char *)essid, lopt.f_essid[i], ESSID_LENGTH) == 0)
 			{
-				return 0;
+                is_filtered = false;
+                goto done;
 			}
 		}
 
-		ret = 1;
+        /* Some filters are configured but no match was found. so 
+         * this will be filtered unless the pcre exec finds a match. 
+         */
+		is_filtered = true;
 	}
 
 #ifdef HAVE_PCRE
-	if (lopt.f_essid_regex)
+	if (lopt.f_essid_regex != NULL)
 	{
-		return pcre_exec(lopt.f_essid_regex,
-						 NULL,
-						 (char *)essid,
-						 (int)strnlen((char *)essid, ESSID_LENGTH),
-						 0,
-						 0,
-						 NULL,
-						 0)
-			   < 0;
+		is_filtered = pcre_exec(lopt.f_essid_regex,
+                                NULL,
+                                (char *)essid,
+                                (int)strnlen((char *)essid, ESSID_LENGTH),
+                                0,
+                                0,
+                                NULL,
+                                0)
+			           < 0;
 	}
 #endif
 
-	return ret;
+done:
+	return is_filtered;
 }
 
 static void update_ap_rx_quality(
@@ -1455,7 +1460,7 @@ static void sta_info_free(struct ST_info * const st_cur)
 
 static struct ST_info * st_info_new(mac_address const * const stmac)
 {
-	struct ST_info * const st_cur = calloc(1, sizeof(*st_cur));
+	struct ST_info * const st_cur = calloc(1, sizeof *st_cur);
 
 	if (st_cur == NULL)
 	{
@@ -2117,7 +2122,10 @@ skip_station:
 
                 for (i = 0; i < n; i++)
                 {
-					if (p[2 + i] > 0 && p[2 + i] < ' ') goto skip_probe;
+                    if (p[2 + i] > 0 && p[2 + i] < ' ')
+                    {
+                        goto skip_probe;
+                    }
                 }
 
 				/* got a valid ASCII probed ESSID, check if it's
@@ -2137,15 +2145,18 @@ skip_station:
 					st_cur->probes[st_cur->probe_index], p + 2, n); // twice?!
 				st_cur->ssid_length[st_cur->probe_index] = (int) n;
 
-				if (verifyssid((const unsigned char *)
-								   st_cur->probes[st_cur->probe_index])
-					== 0)
-					for (i = 0; i < n; i++)
-					{
-						c = p[2 + i];
-						if (c < 32) c = '.';
-						st_cur->probes[st_cur->probe_index][i] = c;
-					}
+                if (!verifyssid((uint8_t *)st_cur->probes[st_cur->probe_index]))
+                {
+					for (size_t i = 0; i < n; i++)
+                    {
+                        c = p[2 + i];
+                        if (c < (uint8_t)' ')
+                        { 
+                            c = '.';
+                        }
+                        st_cur->probes[st_cur->probe_index][i] = c;
+                    }
+                }
 			}
 
 			p += 2 + p[1];
@@ -2154,7 +2165,7 @@ skip_station:
 
 skip_probe:
 
-	/* packet parsing: Beacon or Probe Response */
+    /* packet parsing: Beacon or Probe Response */
 
 	if (h80211[0] == IEEE80211_FC0_SUBTYPE_BEACON
 		|| h80211[0] == IEEE80211_FC0_SUBTYPE_PROBE_RESP)
@@ -2189,10 +2200,10 @@ skip_probe:
 				&& (p[1] > 1 || p[2] != ' '))
 			{
 				/* found a non-cloaked ESSID */
-				n = MIN(ESSID_LENGTH, p[1]);
+                ap_cur->ssid_length = MIN((sizeof ap_cur->essid - 1), p[1]);
 
                 memset(ap_cur->essid, 0, sizeof ap_cur->essid);
-				memcpy(ap_cur->essid, p + 2, n);
+                memcpy(ap_cur->essid, p + 2, ap_cur->ssid_length);
 
 				if (opt.f_ivs != NULL && !ap_cur->essid_stored)
 				{
@@ -2228,9 +2239,9 @@ skip_probe:
 					/* write essid */
 					if (fwrite(ap_cur->essid,
 							   1,
-							   (size_t) ap_cur->ssid_length,
+                               ap_cur->ssid_length,
 							   opt.f_ivs)
-						!= (size_t) ap_cur->ssid_length)
+                        != ap_cur->ssid_length)
 					{
 						perror("fwrite(IV essid) failed");
 						return;
@@ -2239,11 +2250,14 @@ skip_probe:
 					ap_cur->essid_stored = 1;
 				}
 
-				if (verifyssid(ap_cur->essid) == 0)
+				if (!verifyssid(ap_cur->essid))
 				{
-					for (i = 0; i < n; i++)
+                    for (size_t i = 0; i < ap_cur->ssid_length; i++)
 					{
-						if (ap_cur->essid[i] < 32) ap_cur->essid[i] = '.';
+                        if (ap_cur->essid[i] < (uint8_t)' ')
+                        {
+                            ap_cur->essid[i] = '.';
+                        }
 					}
 				}
 			}
@@ -2791,11 +2805,10 @@ skip_probe:
 				&& (p[1] > 1 || p[2] != ' '))
 			{
 				/* found a non-cloaked ESSID */
-				n = MIN(ESSID_LENGTH, p[1]);
+                ap_cur->ssid_length = MIN((sizeof ap_cur->essid - 1), p[1]);
 
-				memset(ap_cur->essid, 0, ESSID_LENGTH + 1);
-				memcpy(ap_cur->essid, p + 2, n);
-				ap_cur->ssid_length = (int) n;
+                memset(ap_cur->essid, 0, sizeof ap_cur->essid);
+                memcpy(ap_cur->essid, p + 2, ap_cur->ssid_length);
 
 				if (opt.f_ivs != NULL && !ap_cur->essid_stored)
 				{
@@ -2831,9 +2844,9 @@ skip_probe:
 					/* write essid */
 					if (fwrite(ap_cur->essid,
 							   1,
-							   (size_t) ap_cur->ssid_length,
+							   ap_cur->ssid_length,
 							   opt.f_ivs)
-						!= (size_t) ap_cur->ssid_length)
+						!= ap_cur->ssid_length)
 					{
 						perror("fwrite(IV essid) failed");
 						return;
@@ -2842,9 +2855,16 @@ skip_probe:
 					ap_cur->essid_stored = 1;
 				}
 
-				if (verifyssid(ap_cur->essid) == 0)
-					for (i = 0; i < n; i++)
-						if (ap_cur->essid[i] < 32) ap_cur->essid[i] = '.';
+                if (!verifyssid(ap_cur->essid))
+                {
+                    for (size_t i = 0; i < ap_cur->ssid_length; i++)
+                    {
+                        if (ap_cur->essid[i] < (uint8_t)' ')
+                        {
+                            ap_cur->essid[i] = '.';
+                        }
+                    }
+                }
 			}
 
 			p += 2 + p[1];
@@ -4134,7 +4154,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 				ssize_t essid_len = len;
 
-				if (ap_cur->essid[0] != 0x00)
+				if (ap_cur->essid[0] != (uint8_t)'\0')
 				{
 					if (lopt.show_wps)
 						snprintf(strbuf + len,
@@ -4152,13 +4172,13 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 					if (lopt.show_wps)
 						snprintf(strbuf + len,
 								 sizeof(strbuf) - len - 1,
-								 "  <length:%3d>%s",
+								 "  <length:%3zd>%s",
 								 ap_cur->ssid_length,
 								 "\x00");
 					else
 						snprintf(strbuf + len,
 								 sizeof(strbuf) - len,
-								 " <length:%3d>%s",
+								 " <length:%3zd>%s",
 								 ap_cur->ssid_length,
 								 "\x00");
 				}
@@ -4290,7 +4310,10 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 				nlines++;
 
-				if (nlines >= (ws_row - 1)) return;
+                if (nlines >= (ws_row - 1))
+                {
+                    return;
+                }
 
                 if (MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
                 {
