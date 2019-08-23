@@ -99,6 +99,7 @@
 #include "gps_tracker.h"
 #include "ap_compare.h"
 #include "channel_hopper.h"
+#include "packet_writer.h"
 
 #define DEFAULT_CHANNEL_WIDTH_MHZ 20
 
@@ -302,6 +303,8 @@ static struct local_options
 	struct dump_context_st * kismet_csv_dump_context;
 	struct dump_context_st * kismet_netxml_dump_context;
 	struct dump_context_st * wifi_dump_context;
+
+    struct packet_writer_context_st * pcap_writer_context;
 
 } lopt;
 
@@ -1746,44 +1749,19 @@ done:
 	return;
 }
 
-static void write_cap_file(
-	FILE * fp,
-	uint8_t const * const h80211,
-	size_t const caplen,
-	int32_t const ri_power)
+static void update_packet_capture_files(
+    struct local_options * const options,
+    uint8_t const * const packet,
+    size_t const packet_length,
+    int32_t const ri_power)
 {
-	struct pcap_pkthdr pkh;
-	struct timeval tv;
-
-	if (fp == NULL || caplen < 10)
-	{
-		goto done;
-	}
-
-	gettimeofday(&tv, NULL);
-
-	pkh.len = pkh.caplen = caplen;
-	pkh.tv_sec = (int32_t)tv.tv_sec;
-	pkh.tv_usec = (int32_t)((tv.tv_usec & ~0x1ff) + ri_power + 64);
-
-	/* Write the header. */
-	if (fwrite(&pkh, 1, sizeof(pkh), fp) != sizeof(pkh))
-	{
-		perror("fwrite(packet header) failed");
-		goto done;
-	}
-
-	/* Now write the data. */
-	if (fwrite(h80211, 1, caplen, fp) != caplen)
-	{
-		perror("fwrite(packet data) failed");
-		goto done;
-	}
-
-	fflush(fp);
-
-done:
-	return;
+    if (options->pcap_writer_context != NULL)
+    {
+        packet_writer_write(options->pcap_writer_context, 
+                            packet, 
+                            packet_length, 
+                            ri_power);
+    }
 }
 
 // NOTE(jbenden): This is also in ivstools.c
@@ -3480,7 +3458,7 @@ write_packet:
 		}
 	}
 
-	write_cap_file(opt.f_cap, h80211, caplen, ri->ri_power);
+    update_packet_capture_files(&lopt, h80211, caplen, ri->ri_power);
 }
 
 #define TSTP_SEC                                                               \
@@ -5868,11 +5846,6 @@ static void check_for_user_input(struct local_options * const options)
 
 static void flush_output_files(void)
 {
-    if (opt.f_cap != NULL)
-    {
-        fflush(opt.f_cap);
-    }
-
     if (opt.f_ivs != NULL)
     {
         fflush(opt.f_ivs);
@@ -6035,7 +6008,28 @@ static bool dump_initialise_custom_dump_formats(
 		}
 	}
 
-	success = true;
+    if (opt.output_format_pcap)
+    {
+        snprintf(ofn,
+                 ofn_len,
+                 "%s-%02d.%s",
+                 prefix,
+                 opt.f_index,
+                 AIRODUMP_NG_CAP_EXT);
+        lopt.pcap_writer_context = 
+            packet_writer_open(packet_writer_type_pcap, ofn);
+
+        if (lopt.pcap_writer_context == NULL)
+        {
+            fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            free(ofn);
+
+            success = false;
+            goto done;
+        }
+    }
+
+    success = true;
 
 done:
 	free(ofn);
@@ -6109,10 +6103,11 @@ static void close_dump_output_files(void)
 		fclose(opt.f_gps);
 	}
 
-	if (opt.f_cap != NULL)
-	{
-		fclose(opt.f_cap);
-	}
+    if (lopt.pcap_writer_context != NULL)
+    {
+        packet_writer_close(lopt.pcap_writer_context);
+        lopt.pcap_writer_context = NULL;
+    }
 
 	if (opt.f_ivs != NULL)
 	{
@@ -6344,6 +6339,24 @@ static void do_refresh(struct local_options * const options)
     }
 }
 
+static char * time_as_string(time_t const time)
+{
+    char * const string = strdup(ctime(&time));
+
+    ALLEGE(string != NULL);
+
+    /* Remove the new line that is included by ctime(). 
+     * Cripes why wouldn't it just provide the time, and not assume 
+     * that it goes at the end of a line? 
+     */
+    if (strlen(string) > 0)
+    {
+        string[strlen(string) - 1] = '\0';
+    }
+
+    return string;
+}
+
 int main(int argc, char * argv[])
 {
 	int program_exit_code;
@@ -6451,7 +6464,7 @@ int main(int argc, char * argv[])
 	lopt.singlefreq = 0;
 	lopt.dump_prefix = NULL;
 	opt.record_data = 0;
-	opt.f_cap = NULL;
+    lopt.pcap_writer_context = NULL;
 	opt.f_ivs = NULL;
 	lopt.max_node_age = 0;
     opt.f_gps = NULL;
@@ -7335,15 +7348,9 @@ int main(int argc, char * argv[])
 		}
 	}
 
+    start_time = time(NULL);
 	/* Create start time string for kismet netxml file */
-	start_time = time(NULL);
-	lopt.airodump_start_time = strdup(ctime(&start_time));
-	ALLEGE(lopt.airodump_start_time != NULL);
-	// remove new line
-	if (strlen(lopt.airodump_start_time) > 0)
-	{
-		lopt.airodump_start_time[strlen(lopt.airodump_start_time) - 1] = '\0';
-	}
+    lopt.airodump_start_time = time_as_string(start_time);
 
 	/* open or create the output files */
     if (opt.record_data)
