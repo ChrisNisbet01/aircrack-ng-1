@@ -299,11 +299,11 @@ static struct local_options
 
     size_t max_node_age;
 
-    /* TODO: Make an array out of these of size dump_type_COUNT. */
-	struct dump_context_st * csv_dump_context;
-	struct dump_context_st * kismet_csv_dump_context;
-	struct dump_context_st * kismet_netxml_dump_context;
-	struct dump_context_st * wifi_dump_context;
+    struct
+    {
+        bool needed;
+        struct dump_context_st * context;
+    } dump[dump_type_COUNT];
 
     struct packet_writer_context_st * pcap_writer_context;
 
@@ -5976,12 +5976,19 @@ static bool dump_initialise_custom_dump_formats(
 	ofn = malloc(ofn_len);
 	ALLEGE(ofn != NULL);
 
-	if (opt.output_format_csv)
+    /* TODO: Loop over the array rather than checking each index 
+     * specifically. Note that the wifi dump might need to 
+     * generate the output filename differently than the others (no 
+     * index). 
+     * Perhaps include a suffix and filename generator callback, or 
+     * just have a filename type specifier. 
+     */
+    if (lopt.dump[dump_type_csv].needed)
 	{
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, AIRODUMP_NG_CSV_EXT);
 
-		lopt.csv_dump_context =
+        lopt.dump[dump_type_csv].context =
 			dump_open(dump_type_csv,
 					  ofn,
 					  sys_name,
@@ -5991,7 +5998,7 @@ static bool dump_initialise_custom_dump_formats(
 					  airodump_start_time,
 					  use_gpsd);
 
-		if (lopt.csv_dump_context == NULL)
+        if (lopt.dump[dump_type_csv].context == NULL)
 		{
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
 			free(ofn);
@@ -6001,12 +6008,12 @@ static bool dump_initialise_custom_dump_formats(
 		}
 	}
 
-	if (opt.output_format_kismet_csv)
+    if (lopt.dump[dump_type_kismet_csv].needed)
 	{
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, KISMET_CSV_EXT);
 
-		lopt.kismet_csv_dump_context =
+        lopt.dump[dump_type_kismet_csv].context =
 			dump_open(dump_type_kismet_csv,
 					  ofn,
 					  sys_name,
@@ -6016,7 +6023,7 @@ static bool dump_initialise_custom_dump_formats(
 					  airodump_start_time,
 					  use_gpsd);
 
-		if (lopt.kismet_csv_dump_context == NULL)
+        if (lopt.dump[dump_type_kismet_csv].context == NULL)
 		{
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
 			free(ofn);
@@ -6026,12 +6033,12 @@ static bool dump_initialise_custom_dump_formats(
 		}
 	}
 
-	if (opt.output_format_kismet_netxml)
+    if (lopt.dump[dump_type_kismet_netxml].needed)
 	{
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, KISMET_NETXML_EXT);
 
-		lopt.kismet_netxml_dump_context =
+        lopt.dump[dump_type_kismet_netxml].context =
 			dump_open(dump_type_kismet_netxml,
 					  ofn,
 					  sys_name,
@@ -6041,7 +6048,7 @@ static bool dump_initialise_custom_dump_formats(
 					  airodump_start_time,
 					  use_gpsd);
 
-		if (lopt.kismet_netxml_dump_context == NULL)
+        if (lopt.dump[dump_type_kismet_netxml].context == NULL)
 		{
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
 			free(ofn);
@@ -6051,12 +6058,12 @@ static bool dump_initialise_custom_dump_formats(
 		}
 	}
 
-	if (opt.output_format_wifi_scanner)
+    if (lopt.dump[dump_type_wifi_scanner].needed)
 	{
 		snprintf(
 			ofn, ofn_len, "%s-%02d.%s", prefix, opt.f_index, WIFI_EXT);
 
-		lopt.wifi_dump_context =
+        lopt.dump[dump_type_wifi_scanner].context =
 			dump_open(dump_type_wifi_scanner,
                       ofn,
                       sys_name,
@@ -6066,7 +6073,7 @@ static bool dump_initialise_custom_dump_formats(
                       airodump_start_time,
 					  use_gpsd);
 
-		if (lopt.wifi_dump_context == NULL)
+        if (lopt.dump[dump_type_wifi_scanner].context == NULL)
 		{
 			fprintf(stderr, "Could not create \"%s\".\n", ofn);
 			free(ofn);
@@ -6105,66 +6112,39 @@ done:
 	return success;
 }
 
-static void update_dump_output_files(void)
+static void update_dump_output_files(struct local_options * const options)
 {
-	if (lopt.csv_dump_context != NULL)
-	{
-		dump_write(lopt.csv_dump_context,
-                   &lopt.ap_list,
-                   &lopt.sta_list,
-                   lopt.f_encrypt);
-	}
+    for (dump_type_t dump_type = 0; dump_type < dump_type_COUNT; dump_type++)
+    {
+        dump_context_st * const dump_context = options->dump[dump_type].context;
 
-    if (lopt.kismet_csv_dump_context != NULL)
-	{
-		dump_write(lopt.kismet_csv_dump_context,
-				   &lopt.ap_list,
-				   &lopt.sta_list,
-				   lopt.f_encrypt);
-	}
-
-	if (lopt.kismet_netxml_dump_context != NULL)
-	{
-		dump_write(lopt.kismet_netxml_dump_context,
-				   &lopt.ap_list,
-				   &lopt.sta_list,
-				   lopt.f_encrypt);
-	}
-
-	if (lopt.wifi_dump_context != NULL)
-	{
-		dump_write(lopt.wifi_dump_context,
-                   &lopt.ap_list,
-                   &lopt.sta_list,
-                   lopt.f_encrypt);
-	}
+        if (dump_context != NULL)
+        {
+            dump_write(dump_context,
+                       &options->ap_list,
+                       &options->sta_list,
+                       options->f_encrypt);
+        }
+    }
 }
 
-static void close_dump_output_files(void)
+static void close_dump_output_files(struct local_options * const options)
 {
-	if (lopt.csv_dump_context != NULL)
-	{
-		dump_close(lopt.csv_dump_context);
-		lopt.csv_dump_context = NULL;
-	}
+    for (dump_type_t dump_type = 0; dump_type < dump_type_COUNT; dump_type++)
+    {
+        dump_context_st * const dump_context = options->dump[dump_type].context;
 
-	if (lopt.kismet_csv_dump_context != NULL)
-	{
-		dump_close(lopt.kismet_csv_dump_context);
-		lopt.kismet_csv_dump_context = NULL;
-	}
+        if (dump_context != NULL)
+        {
+            dump_close(dump_context);
+            options->dump[dump_type].context = NULL;
+        }
+    }
+}
 
-    if (lopt.kismet_netxml_dump_context != NULL)
-	{
-		dump_close(lopt.kismet_netxml_dump_context);
-		lopt.kismet_netxml_dump_context = NULL;
-	}
-
-    if (lopt.wifi_dump_context != NULL)
-	{
-		dump_close(lopt.wifi_dump_context);
-		lopt.wifi_dump_context = NULL;
-	}
+static void close_output_files(struct local_options * const options)
+{
+    close_dump_output_files(options);
 
 	if (opt.f_gps != NULL)
 	{
@@ -6263,17 +6243,12 @@ static void airodump_shutdown(struct wif * * const wi)
 
 	close_cards(wi, lopt.num_cards);
 
-	/* FIXME: - Shouldn't need to check this flag. Just check
-	 * pointer values etc.
-	 */
-	if (opt.record_data)
-	{
-        update_dump_output_files();
-        close_dump_output_files();
+    update_dump_output_files(&lopt);
 
-		free(lopt.airodump_start_time);
-		lopt.airodump_start_time = NULL;
-	}
+    close_output_files(&lopt);
+
+    free(lopt.airodump_start_time);
+    lopt.airodump_start_time = NULL;
 
     if (lopt.interactive_mode > 0)
 	{
@@ -6426,6 +6401,16 @@ static char * time_as_string(time_t const time)
     }
 
     return string;
+}
+
+static void dump_contexts_initialise(
+    struct local_options * const options, 
+    bool const are_needed)
+{
+    for (dump_type_t dump_type = 0; dump_type < dump_type_COUNT; dump_type++)
+    {
+        options->dump[dump_type].needed = are_needed;
+    }
 }
 
 int main(int argc, char * argv[])
@@ -6581,16 +6566,9 @@ int main(int argc, char * argv[])
     lopt.input_thread_pipe[1] = -1; 
 
 	opt.output_format_pcap = 1;
-	opt.output_format_csv = 1;
-	opt.output_format_kismet_csv = 1;
-	opt.output_format_kismet_netxml = 1;
-	opt.output_format_log_csv = 1;
-    opt.output_format_wifi_scanner = 1;
+    opt.output_format_log_csv = 1; 
 
-    lopt.wifi_dump_context = NULL;
-	lopt.csv_dump_context = NULL;
-	lopt.kismet_csv_dump_context = NULL;
-	lopt.kismet_netxml_dump_context = NULL;
+    dump_contexts_initialise(&lopt, true);
 
 	lopt.file_write_interval = 5; // Write file every 5 seconds by default
 	lopt.maxsize_wps_seen = 6;
@@ -6901,11 +6879,9 @@ int main(int argc, char * argv[])
 					output_format_first_time = 0;
 
 					opt.output_format_pcap = 0;
-					opt.output_format_csv = 0;
-					opt.output_format_kismet_csv = 0;
-					opt.output_format_kismet_netxml = 0;
-					opt.output_format_log_csv = 0;
-					opt.output_format_wifi_scanner = 0;
+                    opt.output_format_log_csv = 0;
+
+                    dump_contexts_initialise(&lopt, false);
 				}
 
 				if (opt.output_format_pcap)
@@ -7115,12 +7091,10 @@ int main(int argc, char * argv[])
 					output_format_first_time = 0;
 
 					opt.output_format_pcap = 0;
-					opt.output_format_csv = 0;
-					opt.output_format_kismet_csv = 0;
-					opt.output_format_kismet_netxml = 0;
 					opt.output_format_log_csv = 0;
-                    opt.output_format_wifi_scanner = 0;
-				}
+
+                    dump_contexts_initialise(&lopt, false);
+                }
 
 				// Parse the value
 				output_format_string = strtok(optarg, ",");
@@ -7131,7 +7105,7 @@ int main(int argc, char * argv[])
 						if (strncasecmp(output_format_string, "csv", 3) == 0
 							|| strncasecmp(output_format_string, "txt", 3) == 0)
 						{
-							opt.output_format_csv = 1;
+                            lopt.dump[dump_type_csv].needed = true;
 						}
 						else if (strncasecmp(output_format_string, "pcap", 4)
 									 == 0
@@ -7168,7 +7142,7 @@ int main(int argc, char * argv[])
 						else if (strncasecmp(output_format_string, "kismet", 6)
 								 == 0)
 						{
-							opt.output_format_kismet_csv = 1;
+                            lopt.dump[dump_type_kismet_csv].needed = true;
 						}
 						else if (strncasecmp(output_format_string, "gps", 3)
 								 == 0)
@@ -7195,7 +7169,7 @@ int main(int argc, char * argv[])
 												14)
 										== 0)
 						{
-							opt.output_format_kismet_netxml = 1;
+                            lopt.dump[dump_type_kismet_netxml].needed = true;
 						}
 						else if (strncasecmp(output_format_string, "logcsv", 6)
 								 == 0)
@@ -7204,30 +7178,26 @@ int main(int argc, char * argv[])
 						}
                         else if (strncasecmp(output_format_string, "wifi_scanner", 12) == 0)
                         {
-                            opt.output_format_wifi_scanner = 1;
+                            lopt.dump[dump_type_wifi_scanner].needed = true;
                         }
                         else if (strncasecmp(output_format_string, "default", 7)
 								 == 0)
 						{
 							opt.output_format_pcap = 1;
-							opt.output_format_csv = 1;
-							opt.output_format_kismet_csv = 1;
-							opt.output_format_kismet_netxml = 1;
 							opt.output_format_log_csv = 1;
-							opt.output_format_wifi_scanner = 1;
-						}
+
+                            dump_contexts_initialise(&lopt, true);
+                        }
 						else if (strncasecmp(output_format_string, "none", 4)
 								 == 0)
 						{
 							opt.output_format_pcap = 0;
-							opt.output_format_csv = 0;
-							opt.output_format_kismet_csv = 0;
-							opt.output_format_kismet_netxml = 0;
 							opt.output_format_log_csv = 0;
-                            opt.output_format_wifi_scanner = 0;
 							opt.usegpsd = 0;
 							ivs_only = 0;
-						}
+
+                            dump_contexts_initialise(&lopt, false);
+                        }
 						else
 						{
 							// Display an error if it does not match any value
@@ -7474,7 +7444,7 @@ int main(int argc, char * argv[])
     lopt.elapsed_time = strdup("0 s");
     ALLEGE(lopt.elapsed_time != NULL);
 
-    if (opt.output_format_wifi_scanner)
+    if (lopt.dump[dump_type_wifi_scanner].needed)
     {
         lopt.interactive_mode = false;
     }
@@ -7534,7 +7504,7 @@ int main(int argc, char * argv[])
 		{
 			/* update the output files */
 			tt1 = current_time;
-            update_dump_output_files();
+            update_dump_output_files(&lopt);
 		}
 
 		current_time = time(NULL);
