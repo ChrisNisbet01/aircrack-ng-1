@@ -1454,6 +1454,15 @@ done:
 	return na_cur;
 }
 
+static void sta_populate_gps(
+    struct ST_info * const st_cur,
+    float const * const gps_coordinates)
+{
+    memcpy(st_cur->gps_loc_min, gps_coordinates, sizeof(st_cur->gps_loc_min));
+    memcpy(st_cur->gps_loc_max, gps_coordinates, sizeof(st_cur->gps_loc_max));
+    memcpy(st_cur->gps_loc_best, gps_coordinates, sizeof(st_cur->gps_loc_best));
+}
+
 static struct ST_info * st_info_new(mac_address const * const stmac)
 {
     struct ST_info * const st_cur = calloc(1, sizeof *st_cur);
@@ -1465,11 +1474,6 @@ static struct ST_info * st_info_new(mac_address const * const stmac)
     }
 
     MAC_ADDRESS_COPY(&st_cur->stmac, stmac);
-
-    st_cur->manuf =
-        get_manufacturer_by_oui(
-        lopt.manufacturer_list,
-        st_cur->stmac.addr);
 
     st_cur->nb_pkt = 0;
 
@@ -1491,10 +1495,6 @@ static struct ST_info * st_info_new(mac_address const * const stmac)
     st_cur->old_channel = 0;
 
     gettimeofday(&st_cur->ftimer, NULL);
-
-    memcpy(st_cur->gps_loc_min, lopt.gps_context.gps_loc, sizeof(st_cur->gps_loc_min));
-    memcpy(st_cur->gps_loc_max, lopt.gps_context.gps_loc, sizeof(st_cur->gps_loc_max));
-    memcpy(st_cur->gps_loc_best, lopt.gps_context.gps_loc, sizeof(st_cur->gps_loc_best));
 
     for (size_t i = 0; i < NB_PRB; i++)
     {
@@ -1524,10 +1524,11 @@ static struct ST_info * sta_info_lookup_existing(
 }
 
 static struct ST_info * sta_info_lookup(
-    struct sta_list_head * const sta_list,
+    struct local_options * const options,
     mac_address const * const mac,
     bool * const is_new)
 {
+    struct sta_list_head * const sta_list = &options->sta_list;
     struct ST_info * st_cur;
 
     st_cur = sta_info_lookup_existing(&lopt.sta_list, mac);
@@ -1544,6 +1545,11 @@ static struct ST_info * sta_info_lookup(
     {
         goto done;
     }
+
+    st_cur->manuf =
+        get_manufacturer_by_oui(options->manufacturer_list, mac->addr);
+
+    sta_populate_gps(st_cur, options->gps_context.gps_loc);
 
     TAILQ_INSERT_TAIL(sta_list, st_cur, entry);
 
@@ -1635,6 +1641,15 @@ static void ap_list_free(struct local_options * const options)
     }
 }
 
+static void ap_info_populate_gps(
+    struct AP_info * const ap_cur,
+    float const * const gps_coordinates)
+{
+    memcpy(ap_cur->gps_loc_min, gps_coordinates, sizeof(ap_cur->gps_loc_min));
+    memcpy(ap_cur->gps_loc_max, gps_coordinates, sizeof(ap_cur->gps_loc_max));
+    memcpy(ap_cur->gps_loc_best, gps_coordinates, sizeof(ap_cur->gps_loc_best));
+}
+
 static struct AP_info * ap_info_new(mac_address const * const bssid)
 {
 	struct AP_info * const ap_cur = calloc(1, sizeof(*ap_cur));
@@ -1646,10 +1661,6 @@ static struct AP_info * ap_info_new(mac_address const * const bssid)
 	}
 
 	MAC_ADDRESS_COPY(&ap_cur->bssid, bssid);
-    ap_cur->manuf =
-        get_manufacturer_by_oui(
-            lopt.manufacturer_list,
-            ap_cur->bssid.addr);
 
 	ap_cur->nb_pkt = 0;
 
@@ -1673,11 +1684,6 @@ static struct AP_info * ap_info_new(mac_address const * const bssid)
 
 	ap_cur->ivbuf = NULL;
 	ap_cur->ivbuf_size = 0;
-
-    if (lopt.f_ivs != NULL)
-    {
-        ap_cur->uiv_root = uniqueiv_init();
-    }
 
 	ap_cur->nb_data = 0;
 	ap_cur->nb_dataps = 0;
@@ -1703,7 +1709,6 @@ static struct AP_info * ap_info_new(mac_address const * const bssid)
 	memset(ap_cur->essid, 0, sizeof ap_cur->essid);
 	ap_cur->timestamp = 0;
 
-	ap_cur->decloak_detect = lopt.decloak;
 	ap_cur->is_decloak = 0;
 
 	TAILQ_INIT(&ap_cur->pkt_list);
@@ -1760,10 +1765,11 @@ static struct AP_info * ap_info_lookup_existing(
 }
 
 static struct AP_info * ap_info_lookup(
-    struct ap_list_head * const ap_list,
+    struct local_options * const options,
     mac_address const * const bssid,
     bool * const is_new)
 {
+    struct ap_list_head * const ap_list = &options->ap_list;
     struct AP_info * ap_cur;
 
     ap_cur = ap_info_lookup_existing(ap_list, bssid);
@@ -1780,6 +1786,15 @@ static struct AP_info * ap_info_lookup(
     {
         goto done;
     }
+
+    ap_cur->manuf =
+        get_manufacturer_by_oui(options->manufacturer_list, bssid->addr);
+    if (options->f_ivs != NULL)
+    {
+        ap_cur->uiv_root = uniqueiv_init();
+    }
+    ap_cur->decloak_detect = options->decloak; 
+    ap_info_populate_gps(ap_cur, options->gps_context.gps_loc);
 
     TAILQ_INSERT_TAIL(ap_list, ap_cur, entry);
 
@@ -1973,7 +1988,7 @@ static void dump_add_packet(
 	/* update our chained list of access points */
     bool is_new_ap;
 
-    ap_cur = ap_info_lookup(&lopt.ap_list, &bssid, &is_new_ap);
+    ap_cur = ap_info_lookup(&lopt, &bssid, &is_new_ap);
     if (ap_cur == NULL)
     {
         return;
@@ -2111,7 +2126,7 @@ static void dump_add_packet(
 	/* update our chained list of wireless stations */
     bool is_new;
 
-    st_cur = sta_info_lookup(&lopt.sta_list, &stmac, &is_new);
+    st_cur = sta_info_lookup(&lopt, &stmac, &is_new);
     if (st_cur == NULL)
     {
         return;
