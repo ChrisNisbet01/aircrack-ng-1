@@ -327,6 +327,7 @@ static struct local_options
     {
         bool required;
         FILE * fp;
+        char * filename;
     } gpsd;
 
     struct
@@ -341,7 +342,11 @@ static struct local_options
         struct packet_writer_context_st * writer;
     } pcap_output;
 
-    int f_index; /* Appended to filenames of output dump files. */
+    int no_filename_index;
+    /* Possibly appended to filenames of output dump files. value 
+     * -1 indicates not to. 
+     */
+    int f_index; 
 } lopt;
 
 static void reset_sort_context(struct sort_context_st * const sort_context)
@@ -869,6 +874,7 @@ static const char usage[] =
     "      -v          <minutes> : Maximum age of cached entries\n"
     "      --ignore-negative-one : Removes the message that says\n"
 	"                              fixed channel <interface>: -1\n"
+    "      --no-filename-index   : Don't include an index in the filname\n"
 	"      --write-interval\n"
 	"                  <seconds> : Output file(s) write interval in seconds\n"
 	"      --background <enable> : Override background detection.\n"
@@ -6032,11 +6038,14 @@ static bool open_output_files(struct local_options * const options)
 	size_t const ADDED_LENGTH = 17; /* FIXME: Work out the required length from
 									 *  the extensions etc
 									 */
-    /* I think we need an option to _not_ do this index business, 
-     * and just use the prefix the user has supplied. If that 
-     * means overwriting existing files, so be it. 
-     */
-    options->f_index = find_first_free_file_index(options->dump_prefix);
+    if (options->no_filename_index)
+    {
+        options->f_index = -1;
+    }
+    else
+    {
+        options->f_index = find_first_free_file_index(options->dump_prefix);
+    }
 
 	/* Create a buffer of the length of the prefix + '-' + 2 numbers + '.'
 	   + longest extension ("kismet.netxml") + terminating 0. */
@@ -6053,12 +6062,17 @@ static bool open_output_files(struct local_options * const options)
      */
     if (options->dump[dump_type_csv].needed)
 	{
-		snprintf(
-            ofn, ofn_len, "%s-%02d.%s", options->dump_prefix, options->f_index, AIRODUMP_NG_CSV_EXT);
+		char const * const filename = 
+            create_output_filename(
+                ofn, 
+                ofn_len, 
+                options->dump_prefix, 
+                options->f_index, 
+                AIRODUMP_NG_CSV_EXT);
 
         options->dump[dump_type_csv].context =
 			dump_open(dump_type_csv,
-					  ofn,
+                      filename,
 					  options->sys_name,
 					  options->loc_name,
 					  options->filter_seconds,
@@ -6068,7 +6082,7 @@ static bool open_output_files(struct local_options * const options)
 
         if (options->dump[dump_type_csv].context == NULL)
 		{
-			fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            fprintf(stderr, "Could not create \"%s\".\n", filename);
 
 			success = false;
 			goto done;
@@ -6077,12 +6091,17 @@ static bool open_output_files(struct local_options * const options)
 
     if (options->dump[dump_type_kismet_csv].needed)
 	{
-		snprintf(
-            ofn, ofn_len, "%s-%02d.%s", options->dump_prefix, options->f_index, KISMET_CSV_EXT);
+        char const * const filename =
+            create_output_filename(
+                ofn,
+                ofn_len,
+                options->dump_prefix,
+                options->f_index,
+                KISMET_CSV_EXT);
 
         options->dump[dump_type_kismet_csv].context =
 			dump_open(dump_type_kismet_csv,
-					  ofn,
+                      filename,
                       options->sys_name,
                       options->loc_name,
                       options->filter_seconds,
@@ -6092,7 +6111,7 @@ static bool open_output_files(struct local_options * const options)
 
         if (options->dump[dump_type_kismet_csv].context == NULL)
 		{
-			fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            fprintf(stderr, "Could not create \"%s\".\n", filename);
 
 			success = false;
 			goto done;
@@ -6101,12 +6120,17 @@ static bool open_output_files(struct local_options * const options)
 
     if (options->dump[dump_type_kismet_netxml].needed)
 	{
-		snprintf(
-            ofn, ofn_len, "%s-%02d.%s", options->dump_prefix, options->f_index, KISMET_NETXML_EXT);
+        char const * const filename =
+            create_output_filename(
+                ofn,
+                ofn_len,
+                options->dump_prefix,
+                options->f_index,
+                KISMET_NETXML_EXT);
 
         options->dump[dump_type_kismet_netxml].context =
 			dump_open(dump_type_kismet_netxml,
-					  ofn,
+                      filename,
                       options->sys_name,
                       options->loc_name,
                       options->filter_seconds,
@@ -6116,7 +6140,7 @@ static bool open_output_files(struct local_options * const options)
 
         if (options->dump[dump_type_kismet_netxml].context == NULL)
 		{
-			fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            fprintf(stderr, "Could not create \"%s\".\n", filename);
 
 			success = false;
 			goto done;
@@ -6125,12 +6149,17 @@ static bool open_output_files(struct local_options * const options)
 
     if (options->dump[dump_type_wifi_scanner].needed)
 	{
-		snprintf(
-            ofn, ofn_len, "%s-%02d.%s", options->dump_prefix, options->f_index, WIFI_EXT);
+        char const * const filename =
+            create_output_filename(
+                ofn,
+                ofn_len,
+                options->dump_prefix,
+                options->f_index,
+                WIFI_EXT);
 
         options->dump[dump_type_wifi_scanner].context =
 			dump_open(dump_type_wifi_scanner,
-                      ofn,
+                      filename,
                       options->sys_name,
                       options->loc_name,
                       options->filter_seconds,
@@ -6140,7 +6169,7 @@ static bool open_output_files(struct local_options * const options)
 
         if (options->dump[dump_type_wifi_scanner].context == NULL)
 		{
-			fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            fprintf(stderr, "Could not create \"%s\".\n", filename);
 
 			success = false;
 			goto done;
@@ -6149,18 +6178,20 @@ static bool open_output_files(struct local_options * const options)
 
     if (options->pcap_output.required)
     {
-        snprintf(ofn,
-                 ofn_len,
-                 "%s-%02d.%s",
-                 options->dump_prefix,
-                 options->f_index,
-                 AIRODUMP_NG_CAP_EXT);
+        char const * const filename =
+            create_output_filename(
+                ofn,
+                ofn_len,
+                options->dump_prefix,
+                options->f_index,
+                AIRODUMP_NG_CAP_EXT);
+
         options->pcap_output.writer =
-            packet_writer_open(packet_writer_type_pcap, ofn);
+            packet_writer_open(packet_writer_type_pcap, filename);
 
         if (options->pcap_output.writer == NULL)
         {
-            fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            fprintf(stderr, "Could not create \"%s\".\n", filename);
 
             success = false;
             goto done;
@@ -6169,17 +6200,19 @@ static bool open_output_files(struct local_options * const options)
     else if (options->ivs.required)
     {
         struct ivs2_filehdr fivs2;
+        char const * const filename =
+            create_output_filename(
+                ofn,
+                ofn_len,
+                options->dump_prefix,
+                options->f_index,
+                IVS2_EXTENSION);
 
-        fivs2.version = IVS2_VERSION;
-
-        snprintf(
-            ofn, ofn_len, "%s-%02d.%s", options->dump_prefix, options->f_index, IVS2_EXTENSION);
-
-        options->ivs.fp = fopen(ofn, "wb+");
+        options->ivs.fp = fopen(filename, "wb+");
         if (options->ivs.fp == NULL)
         {
             perror("fopen failed");
-            fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            fprintf(stderr, "Could not create \"%s\".\n", filename);
 
             success = false;
             goto done;
@@ -6195,6 +6228,9 @@ static bool open_output_files(struct local_options * const options)
             goto done;
         }
 
+        memset(&fivs2, 0, sizeof fivs2);
+        fivs2.version = IVS2_VERSION;
+
         if (fwrite(&fivs2, 1, sizeof(fivs2), options->ivs.fp) != sizeof(fivs2))
         {
             perror("fwrite(IVs file header) failed");
@@ -6206,18 +6242,19 @@ static bool open_output_files(struct local_options * const options)
 
     if (options->log_csv.required)
     {
-        snprintf(ofn,
-                 ofn_len,
-                 "%s-%02d.%s",
-                 options->dump_prefix,
-                 options->f_index,
-                 AIRODUMP_NG_LOG_CSV_EXT);
+        char const * const filename =
+            create_output_filename(
+                ofn,
+                ofn_len,
+                options->dump_prefix,
+                options->f_index,
+                AIRODUMP_NG_LOG_CSV_EXT);
 
-        options->log_csv.fp = fopen(ofn, "wb+");
+        options->log_csv.fp = fopen(filename, "wb+");
         if (options->log_csv.fp == NULL)
         {
             perror("fopen failed");
-            fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            fprintf(stderr, "Could not create \"%s\".\n", filename);
 
             success = false;
             goto done;
@@ -6231,22 +6268,24 @@ static bool open_output_files(struct local_options * const options)
 
     if (options->gpsd.required)
     {
-        snprintf(ofn,
-                 ofn_len,
-                 "%s-%02d.%s",
-                 options->dump_prefix,
-                 options->f_index,
-                 AIRODUMP_NG_GPS_EXT);
+        char const * const filename =
+            create_output_filename(
+                ofn,
+                ofn_len,
+                options->dump_prefix,
+                options->f_index,
+                AIRODUMP_NG_GPS_EXT);
 
-        options->gpsd.fp = fopen(ofn, "wb+");
+        options->gpsd.fp = fopen(filename, "wb+");
         if (options->gpsd.fp == NULL)
         {
             perror("fopen failed");
-            fprintf(stderr, "Could not create \"%s\".\n", ofn);
+            fprintf(stderr, "Could not create \"%s\".\n", filename);
 
             success = false;
             goto done;
         }
+        options->gpsd.filename = strdup(filename);
     }
 
     success = true;
@@ -6295,7 +6334,12 @@ static void close_output_files(struct local_options * const options)
     if (options->gpsd.fp != NULL)
 	{
         fclose(options->gpsd.fp);
-	}
+        if (!options->gps_context.save_gps && options->gpsd.filename != NULL)
+        {
+            unlink(options->gpsd.filename);
+        }
+        free(options->gpsd.filename);
+    }
 
     if (options->pcap_output.writer != NULL)
     {
@@ -6388,7 +6432,7 @@ static void airodump_shutdown(
     options->airodump_start_time = NULL;
 
     if (options->interactive_mode > 0)
-	{
+    {
         pthread_join(options->input_tid, NULL);
         close(options->input_thread_pipe[1]);
         close(options->input_thread_pipe[0]);
@@ -6396,7 +6440,7 @@ static void airodump_shutdown(
 
     sta_list_free(&options->sta_list);
 
-	ap_list_free(&lopt);
+    ap_list_free(&lopt);
 
     na_info_list_free(&options->na_list);
 
@@ -6599,8 +6643,9 @@ int main(int argc, char * argv[])
            {"filter-seconds", 1, 0, 'F'},
            {"max-age", 1, 0, 'v'},
            {"file-reset-minutes", 1, 0, 'P'},
-           {"ignore-negative-one", 0, &lopt.ignore_negative_one, 1 },
-		   {"manufacturer", 0, 0, 'M'},
+           {"ignore-negative-one", 0, &lopt.ignore_negative_one, 1},
+           {"no-filename-index", 0, &lopt.no_filename_index, 1},
+           {"manufacturer", 0, 0, 'M' },
 		   {"uptime", 0, 0, 'U'},
 		   {"write-interval", 1, 0, 'I'},
 		   {"wps", 0, 0, 'W'},
@@ -7552,8 +7597,6 @@ int main(int argc, char * argv[])
     if (lopt.gpsd.required)
 	{
 		gps_tracker_initialise(&lopt.gps_context,
-                               lopt.dump_prefix,
-                               lopt.f_index,
                                lopt.gpsd.fp,
                                &lopt.do_exit);
 
@@ -7726,8 +7769,7 @@ int main(int argc, char * argv[])
 
                 if (lopt.relative_time)
                 {
-                    pace_pcap_reader(&lopt,
-                                     &previous_timestamp,
+                    pace_pcap_reader(&previous_timestamp,
                                      &packet_timestamp,
                                      read_pkts);
                 }
