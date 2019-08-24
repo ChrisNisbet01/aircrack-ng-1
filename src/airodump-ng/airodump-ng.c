@@ -136,8 +136,6 @@ struct detected_frequencies_st
     int * frequencies;
 };
 
-static void dump_print(int ws_row, int ws_col, int if_num);
-
 struct sort_context_st
 {
     int do_sort_always;
@@ -3728,7 +3726,6 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 		snprintf(strbuf, sizeof(strbuf) - 1, " Freq %4d", lopt.frequency[0]);
 		for (i = 1; i < if_num; i++)
 		{
-			memset(buffer, '\0', sizeof(buffer));
 			snprintf(buffer, sizeof(buffer), ",%4d", lopt.frequency[i]);
 			strlcat(strbuf, buffer, sizeof(strbuf));
 		}
@@ -4445,7 +4442,10 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 					for (i = 0, n = 0; i < NB_PRB; i++)
 					{
-						if (st_cur->probes[i][0] == '\0') continue;
+                        if (st_cur->probes[i][0] == '\0')
+                        {
+                            continue;
+                        }
 
 						snprintf(ssid_list + n,
 								 sizeof(ssid_list) - n - 1,
@@ -4455,7 +4455,10 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 						n += (1 + strlen(st_cur->probes[i]));
 
-						if (n >= (int) sizeof(ssid_list)) break;
+                        if (n >= (int)sizeof(ssid_list))
+                        {
+                            break;
+                        }
 					}
 
 					snprintf(strbuf, sizeof(strbuf) - 1, "%-256s", ssid_list)
@@ -4853,6 +4856,9 @@ static bool is_invalid_channel(int const channel)
     bool is_invalid;
 	int i = 0;
 
+    /* XXX - This seems to be a bit of a complicated way to 
+     * construct this code. 
+     */
 	do
 	{
         if (channel == abg_chans[i] && channel != channel_sentinel)
