@@ -276,11 +276,12 @@ static struct local_options
     struct
     {
         bool paused;
-        bool required;
-    } console_output;
 
-    bool paused;
-    bool was_paused;
+        /* Set after the user pauses output. Used to get the 'pause' message to 
+         * be printed. 
+         */
+        bool required; 
+    } console_output;
 
 	mac_address selected_bssid; /* bssid that is selected */
 
@@ -316,21 +317,31 @@ static struct local_options
         struct dump_context_st * context;
     } dump[dump_type_COUNT];
 
-    bool output_format_pcap;
+    struct
+    {
+        bool required;
+        FILE * fp;
+    } log_csv;
 
-    bool output_format_log_csv;
-    FILE * f_logcsv;
+    struct
+    {
+        bool required;
+        FILE * fp;
+    } gpsd;
 
-    bool use_gpsd;
-    FILE * f_gps;
+    struct
+    {
+        bool required;
+        FILE * fp;
+    } ivs;
 
-    int f_index;
+    struct
+    {
+        bool required;
+        struct packet_writer_context_st * writer;
+    } pcap_output;
 
-    bool ivs_only;
-    FILE * f_ivs;
-
-    struct packet_writer_context_st * pcap_writer_context;
-
+    int f_index; /* Appended to filenames of output dump files. */
 } lopt;
 
 static void reset_sort_context(struct sort_context_st * const sort_context)
@@ -610,8 +621,8 @@ static void input_thread_handle_input_key(
 }
 
 static void handle_input_key(
-    int const keycode, 
-    struct local_options * const options)
+    struct local_options * const options,
+    int const keycode)
 {
     if (keycode == KEY_q)
     {
@@ -1707,7 +1718,7 @@ static struct AP_info * ap_info_new(
     ap_cur->manuf =
         get_manufacturer_by_oui(options->manufacturer_list, bssid->addr);
 
-    if (options->f_ivs != NULL)
+    if (options->ivs.fp != NULL)
     {
         ap_cur->uiv_root = uniqueiv_init();
     }
@@ -1842,9 +1853,9 @@ static void update_packet_capture_files(
     size_t const packet_length,
     int32_t const ri_power)
 {
-    if (options->pcap_writer_context != NULL)
+    if (options->pcap_output.writer != NULL)
     {
-        packet_writer_write(options->pcap_writer_context, 
+        packet_writer_write(options->pcap_output.writer,
                             packet, 
                             packet_length, 
                             ri_power);
@@ -2009,10 +2020,10 @@ static void dump_add_packet(
 		gettimeofday(&(ap_cur->ftimel), NULL);
 
 		/* if we are writing to a file and want to make a continuous rolling log save the data here */
-        if (lopt.f_logcsv != NULL)
+        if (lopt.log_csv.fp != NULL)
 		{
 			/* Write out our rolling log every time we see data from an AP */
-            dump_write_airodump_ng_logcsv_add_ap(lopt.f_logcsv,
+            dump_write_airodump_ng_logcsv_add_ap(lopt.log_csv.fp,
 				ap_cur, ri->ri_power, &lopt.gps_context.gps_time, lopt.gps_context.gps_loc);
 		}
 
@@ -2158,10 +2169,10 @@ static void dump_add_packet(
 		st_cur->lastseq = (uint16_t) seq;
 
 		/* if we are writing to a file and want to make a continuous rolling log save the data here */
-        if (lopt.f_logcsv != NULL)
+        if (lopt.log_csv.fp != NULL)
 		{
 			/* Write out our rolling log every time we see data from a client */
-            dump_write_airodump_ng_logcsv_add_client(lopt.f_logcsv,
+            dump_write_airodump_ng_logcsv_add_client(lopt.log_csv.fp,
 				ap_cur, st_cur, ri->ri_power, &lopt.gps_context.gps_time, lopt.gps_context.gps_loc);
 		}
 	}
@@ -2273,7 +2284,7 @@ skip_probe:
                 memset(ap_cur->essid, 0, sizeof ap_cur->essid);
                 memcpy(ap_cur->essid, p + 2, ap_cur->ssid_length);
 
-				if (lopt.f_ivs != NULL && !ap_cur->essid_stored)
+                if (lopt.ivs.fp != NULL && !ap_cur->essid_stored)
 				{
                     memset(&ivs2, '\x00', sizeof ivs2);
 					ivs2.flags |= IVS2_ESSID;
@@ -2287,7 +2298,7 @@ skip_probe:
 					}
 
 					/* write header */
-                    if (fwrite(&ivs2, 1, sizeof ivs2, lopt.f_ivs) != sizeof ivs2)
+                    if (fwrite(&ivs2, 1, sizeof ivs2, lopt.ivs.fp) != sizeof ivs2)
 					{
 						perror("fwrite(IV header) failed");
 						return;
@@ -2296,7 +2307,7 @@ skip_probe:
 					/* write BSSID */
 					if (ivs2.flags & IVS2_BSSID)
 					{
-                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, lopt.f_ivs)
+                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, lopt.ivs.fp)
                             != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
@@ -2308,7 +2319,7 @@ skip_probe:
 					if (fwrite(ap_cur->essid,
 							   1,
                                ap_cur->ssid_length,
-							   lopt.f_ivs)
+                               lopt.ivs.fp)
                         != ap_cur->ssid_length)
 					{
 						perror("fwrite(IV essid) failed");
@@ -2878,7 +2889,7 @@ skip_probe:
                 memset(ap_cur->essid, 0, sizeof ap_cur->essid);
                 memcpy(ap_cur->essid, p + 2, ap_cur->ssid_length);
 
-				if (lopt.f_ivs != NULL && !ap_cur->essid_stored)
+                if (lopt.ivs.fp != NULL && !ap_cur->essid_stored)
 				{
                     memset(&ivs2, '\x00', sizeof ivs2);
 					ivs2.flags |= IVS2_ESSID;
@@ -2892,7 +2903,7 @@ skip_probe:
 					}
 
 					/* write header */
-                    if (fwrite(&ivs2, 1, sizeof ivs2, lopt.f_ivs) != sizeof ivs2)
+                    if (fwrite(&ivs2, 1, sizeof ivs2, lopt.ivs.fp) != sizeof ivs2)
 					{
 						perror("fwrite(IV header) failed");
 						return;
@@ -2901,7 +2912,7 @@ skip_probe:
 					/* write BSSID */
 					if (ivs2.flags & IVS2_BSSID)
 					{
-                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, lopt.f_ivs)
+                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, lopt.ivs.fp)
                             != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
@@ -2913,7 +2924,7 @@ skip_probe:
 					if (fwrite(ap_cur->essid,
 							   1,
 							   ap_cur->ssid_length,
-							   lopt.f_ivs)
+                               lopt.ivs.fp)
 						!= ap_cur->ssid_length)
 					{
 						perror("fwrite(IV essid) failed");
@@ -3079,7 +3090,7 @@ skip_probe:
 			{
 				/* first time seen IVs */
 
-				if (lopt.f_ivs != NULL)
+                if (lopt.ivs.fp != NULL)
 				{
                     memset(&ivs2, '\x00', sizeof ivs2);
 					ivs2.flags = 0;
@@ -3139,7 +3150,7 @@ skip_probe:
                         MAC_ADDRESS_COPY(&lopt.prev_bssid, &ap_cur->bssid);
 					}
 
-                    if (fwrite(&ivs2, 1, sizeof ivs2, lopt.f_ivs) != sizeof ivs2)
+                    if (fwrite(&ivs2, 1, sizeof ivs2, lopt.ivs.fp) != sizeof ivs2)
 					{
 						perror("fwrite(IV header) failed");
 						return;
@@ -3147,7 +3158,7 @@ skip_probe:
 
 					if (ivs2.flags & IVS2_BSSID)
 					{
-                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, lopt.f_ivs)
+                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, lopt.ivs.fp)
                             != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
@@ -3156,14 +3167,14 @@ skip_probe:
                         ivs2.len -= sizeof ap_cur->bssid;
 					}
 
-					if (fwrite(h80211 + z, 1, 4, lopt.f_ivs) != (size_t) 4)
+                    if (fwrite(h80211 + z, 1, 4, lopt.ivs.fp) != (size_t)4)
 					{
 						perror("fwrite(IV iv+idx) failed");
 						return;
 					}
 					ivs2.len -= 4;
 
-					if (fwrite(clear, 1, ivs2.len, lopt.f_ivs)
+                    if (fwrite(clear, 1, ivs2.len, lopt.ivs.fp)
 						!= (size_t) ivs2.len)
 					{
 						perror("fwrite(IV keystream) failed");
@@ -3177,7 +3188,7 @@ skip_probe:
 			}
 
 			// Record all data linked to IV to detect WEP Cloaking
-			if (lopt.f_ivs == NULL && lopt.detect_anomaly)
+            if (lopt.ivs.fp == NULL && lopt.detect_anomaly)
 			{
 				// Only allocate this when seeing WEP AP
 				if (ap_cur->data_root == NULL)
@@ -3365,7 +3376,7 @@ skip_probe:
 						 lopt.wpa_bssid.addr[4],
 						 lopt.wpa_bssid.addr[5]);
 
-				if (lopt.f_ivs != NULL)
+                if (lopt.ivs.fp != NULL)
 				{
                     memset(&ivs2, '\x00', sizeof ivs2);
 					ivs2.flags = 0;
@@ -3380,7 +3391,7 @@ skip_probe:
                         MAC_ADDRESS_COPY(&lopt.prev_bssid, &ap_cur->bssid);
 					}
 
-                    if (fwrite(&ivs2, 1, sizeof ivs2, lopt.f_ivs) != sizeof ivs2)
+                    if (fwrite(&ivs2, 1, sizeof ivs2, lopt.ivs.fp) != sizeof ivs2)
 					{
 						perror("fwrite(IV header) failed");
 						return;
@@ -3388,7 +3399,7 @@ skip_probe:
 
 					if (ivs2.flags & IVS2_BSSID)
 					{
-                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, lopt.f_ivs)
+                        if (fwrite(&ap_cur->bssid, 1, sizeof ap_cur->bssid, lopt.ivs.fp)
                             != sizeof ap_cur->bssid)
 						{
 							perror("fwrite(IV bssid) failed");
@@ -3400,7 +3411,7 @@ skip_probe:
 					if (fwrite(&st_cur->wpa,
 							   1,
                                sizeof st_cur->wpa,
-							   lopt.f_ivs)
+                               lopt.ivs.fp)
                         != sizeof st_cur->wpa)
 					{
 						perror("fwrite(IV wpa_hdsk) failed");
@@ -3723,7 +3734,7 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
     buffer[0] = '\0';
 
-    if (lopt.use_gpsd)
+    if (lopt.gpsd.required)
 	{
 		// If using GPS then check if we have a valid fix or not and report accordingly
 		if (lopt.gps_context.gps_loc[0] != 0.0f)
@@ -5992,16 +6003,16 @@ static void check_for_user_input(struct local_options * const options)
                      &keycode,
                      sizeof keycode))
     {
-        handle_input_key(keycode, options);
+        handle_input_key(options, keycode);
     }
 }
 
 
 static void flush_output_files(struct local_options * const options)
 {
-    if (options->f_ivs != NULL)
+    if (options->ivs.fp != NULL)
     {
-        fflush(options->f_ivs);
+        fflush(options->ivs.fp);
     }
 }
 
@@ -6022,6 +6033,10 @@ static bool open_output_files(struct local_options * const options)
 	size_t const ADDED_LENGTH = 17; /* FIXME: Work out the required length from
 									 *  the extensions etc
 									 */
+    /* I think we need an option to _not_ do this index business, 
+     * and just use the prefix the user has supplied. If that 
+     * means overwriting existing files, so be it. 
+     */
     options->f_index = find_first_free_file_index(options->dump_prefix);
 
 	/* Create a buffer of the length of the prefix + '-' + 2 numbers + '.'
@@ -6050,7 +6065,7 @@ static bool open_output_files(struct local_options * const options)
 					  options->filter_seconds,
                       options->file_reset_seconds,
                       options->airodump_start_time,
-                      options->use_gpsd);
+                      options->gpsd.required);
 
         if (options->dump[dump_type_csv].context == NULL)
 		{
@@ -6074,7 +6089,7 @@ static bool open_output_files(struct local_options * const options)
                       options->filter_seconds,
                       options->file_reset_seconds,
                       options->airodump_start_time,
-                      options->use_gpsd);
+                      options->gpsd.required);
 
         if (options->dump[dump_type_kismet_csv].context == NULL)
 		{
@@ -6098,7 +6113,7 @@ static bool open_output_files(struct local_options * const options)
                       options->filter_seconds,
                       options->file_reset_seconds,
                       options->airodump_start_time,
-                      options->use_gpsd);
+                      options->gpsd.required);
 
         if (options->dump[dump_type_kismet_netxml].context == NULL)
 		{
@@ -6122,7 +6137,7 @@ static bool open_output_files(struct local_options * const options)
                       options->filter_seconds,
                       options->file_reset_seconds,
                       options->airodump_start_time,
-                      options->use_gpsd);
+                      options->gpsd.required);
 
         if (options->dump[dump_type_wifi_scanner].context == NULL)
 		{
@@ -6133,7 +6148,7 @@ static bool open_output_files(struct local_options * const options)
 		}
 	}
 
-    if (options->output_format_pcap)
+    if (options->pcap_output.required)
     {
         snprintf(ofn,
                  ofn_len,
@@ -6141,10 +6156,10 @@ static bool open_output_files(struct local_options * const options)
                  options->dump_prefix,
                  options->f_index,
                  AIRODUMP_NG_CAP_EXT);
-        options->pcap_writer_context =
+        options->pcap_output.writer =
             packet_writer_open(packet_writer_type_pcap, ofn);
 
-        if (options->pcap_writer_context == NULL)
+        if (options->pcap_output.writer == NULL)
         {
             fprintf(stderr, "Could not create \"%s\".\n", ofn);
 
@@ -6152,7 +6167,7 @@ static bool open_output_files(struct local_options * const options)
             goto done;
         }
     }
-    else if (options->ivs_only)
+    else if (options->ivs.required)
     {
         struct ivs2_filehdr fivs2;
 
@@ -6161,8 +6176,8 @@ static bool open_output_files(struct local_options * const options)
         snprintf(
             ofn, ofn_len, "%s-%02d.%s", options->dump_prefix, options->f_index, IVS2_EXTENSION);
 
-        options->f_ivs = fopen(ofn, "wb+");
-        if (options->f_ivs == NULL)
+        options->ivs.fp = fopen(ofn, "wb+");
+        if (options->ivs.fp == NULL)
         {
             perror("fopen failed");
             fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -6173,7 +6188,7 @@ static bool open_output_files(struct local_options * const options)
 
         char const ivs2_magic[4] = IVS2_MAGIC;
 
-        if (fwrite(ivs2_magic, 1, sizeof ivs2_magic, options->f_ivs) != sizeof ivs2_magic)
+        if (fwrite(ivs2_magic, 1, sizeof ivs2_magic, options->ivs.fp) != sizeof ivs2_magic)
         {
             perror("fwrite(IVs file MAGIC) failed");
 
@@ -6181,7 +6196,7 @@ static bool open_output_files(struct local_options * const options)
             goto done;
         }
 
-        if (fwrite(&fivs2, 1, sizeof(fivs2), options->f_ivs) != sizeof(fivs2))
+        if (fwrite(&fivs2, 1, sizeof(fivs2), options->ivs.fp) != sizeof(fivs2))
         {
             perror("fwrite(IVs file header) failed");
 
@@ -6190,7 +6205,7 @@ static bool open_output_files(struct local_options * const options)
         }
     }
 
-    if (options->output_format_log_csv)
+    if (options->log_csv.required)
     {
         snprintf(ofn,
                  ofn_len,
@@ -6199,8 +6214,8 @@ static bool open_output_files(struct local_options * const options)
                  options->f_index,
                  AIRODUMP_NG_LOG_CSV_EXT);
 
-        options->f_logcsv = fopen(ofn, "wb+");
-        if (options->f_logcsv == NULL)
+        options->log_csv.fp = fopen(ofn, "wb+");
+        if (options->log_csv.fp == NULL)
         {
             perror("fopen failed");
             fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -6209,13 +6224,13 @@ static bool open_output_files(struct local_options * const options)
             goto done;
         }
 
-        fprintf(options->f_logcsv,
+        fprintf(options->log_csv.fp,
                 "LocalTime, GPSTime, ESSID, BSSID, Power, "
                 "Security, Latitude, Longitude, Latitude Error, "
                 "Longitude Error, Type\r\n");
     }
 
-    if (options->use_gpsd)
+    if (options->gpsd.required)
     {
         snprintf(ofn,
                  ofn_len,
@@ -6224,8 +6239,8 @@ static bool open_output_files(struct local_options * const options)
                  options->f_index,
                  AIRODUMP_NG_GPS_EXT);
 
-        options->f_gps = fopen(ofn, "wb+");
-        if (options->f_gps == NULL)
+        options->gpsd.fp = fopen(ofn, "wb+");
+        if (options->gpsd.fp == NULL)
         {
             perror("fopen failed");
             fprintf(stderr, "Could not create \"%s\".\n", ofn);
@@ -6278,25 +6293,25 @@ static void close_output_files(struct local_options * const options)
 {
     close_dump_output_files(options);
 
-    if (options->f_gps != NULL)
+    if (options->gpsd.fp != NULL)
 	{
-        fclose(options->f_gps);
+        fclose(options->gpsd.fp);
 	}
 
-    if (options->pcap_writer_context != NULL)
+    if (options->pcap_output.writer != NULL)
     {
-        packet_writer_close(options->pcap_writer_context);
-        options->pcap_writer_context = NULL;
+        packet_writer_close(options->pcap_output.writer);
+        options->pcap_output.writer = NULL;
     }
 
-    if (options->f_ivs != NULL)
+    if (options->ivs.fp != NULL)
 	{
-        fclose(options->f_ivs);
+        fclose(options->ivs.fp);
 	}
 
-    if (options->f_logcsv != NULL)
+    if (options->log_csv.fp != NULL)
 	{
-        fclose(options->f_logcsv);
+        fclose(options->log_csv.fp);
 	}
 }
 
@@ -6354,7 +6369,7 @@ static void airodump_shutdown(
 	/* TODO: Restore signal handlers. */
     signal_event_shutdown(options->signal_event_pipe);
 
-    if (options->use_gpsd)
+    if (options->gpsd.required)
 	{
         gps_tracker_stop(&options->gps_context);
 	}
@@ -6607,7 +6622,6 @@ int main(int argc, char * argv[])
 	rand_init();
 	memset(&lopt, 0, sizeof(lopt));
 
-	lopt.ivs_only = 0;
 	lopt.chanoption = 0;
 	lopt.freqoption = 0;
 	lopt.num_cards = 0;
@@ -6615,18 +6629,20 @@ int main(int argc, char * argv[])
     lopt.max_consecutive_failed_interface_reads = 2;
 
     lopt.channel_switching_method = channel_switching_method_fifo;
-    lopt.use_gpsd = 0;
 	lopt.channels = bg_chans;
 	lopt.one_beacon = 1;
 	lopt.singlechan = 0;
 	lopt.singlefreq = 0;
 	lopt.dump_prefix = NULL;
 	lopt.record_data = 0;
-    lopt.pcap_writer_context = NULL;
-	lopt.f_ivs = NULL;
-	lopt.max_node_age = 0;
-    lopt.f_gps = NULL;
-	lopt.f_logcsv = NULL;
+    lopt.pcap_output.writer = NULL;
+    lopt.max_node_age = 0;
+
+    lopt.ivs.required = false;
+    lopt.ivs.fp = NULL;
+
+    lopt.gpsd.required = false;
+    lopt.gpsd.fp = NULL;
 
     lopt.shared_key.f_xor = NULL;
     lopt.shared_key.sk_len = 0;
@@ -6668,8 +6684,10 @@ int main(int argc, char * argv[])
     lopt.input_thread_pipe[0] = -1;
     lopt.input_thread_pipe[1] = -1; 
 
-	lopt.output_format_pcap = 1;
-    lopt.output_format_log_csv = 1; 
+    lopt.pcap_output.required = true;
+
+    lopt.log_csv.fp = NULL;
+    lopt.log_csv.required = true;
 
     dump_contexts_initialise(&lopt, true);
 
@@ -6991,13 +7009,13 @@ int main(int argc, char * argv[])
 				{
 					output_format_first_time = 0;
 
-					lopt.output_format_pcap = 0;
-                    lopt.output_format_log_csv = 0;
+                    lopt.pcap_output.required = false;
+                    lopt.log_csv.required = false;
 
                     dump_contexts_initialise(&lopt, false);
 				}
 
-				if (lopt.output_format_pcap)
+                if (lopt.pcap_output.required)
 				{
 					airodump_usage();
 					fprintf(stderr,
@@ -7008,12 +7026,12 @@ int main(int argc, char * argv[])
 					goto done;
 				}
 
-				lopt.ivs_only = 1;
+				lopt.ivs.required = true;
 				break;
 
 			case 'g':
 
-                lopt.use_gpsd = 1;
+                lopt.gpsd.required = true;
 				break;
 
 			case 'w':
@@ -7210,8 +7228,8 @@ int main(int argc, char * argv[])
 				{
 					output_format_first_time = 0;
 
-                    lopt.output_format_pcap = 0;
-					lopt.output_format_log_csv = 0;
+                    lopt.pcap_output.required = false;
+                    lopt.log_csv.required = false;
 
                     dump_contexts_initialise(&lopt, false);
                 }
@@ -7232,7 +7250,7 @@ int main(int argc, char * argv[])
 								 || strncasecmp(output_format_string, "cap", 3)
 										== 0)
 						{
-							if (lopt.ivs_only)
+                            if (lopt.ivs.required)
 							{
 								airodump_usage();
 								fprintf(stderr,
@@ -7242,12 +7260,12 @@ int main(int argc, char * argv[])
 								program_exit_code = EXIT_FAILURE;
 								goto done;
 							}
-							lopt.output_format_pcap = 1;
+                            lopt.pcap_output.required = true;
 						}
 						else if (strncasecmp(output_format_string, "ivs", 3)
 								 == 0)
 						{
-							if (lopt.output_format_pcap)
+                            if (lopt.pcap_output.required)
 							{
 								airodump_usage();
 								fprintf(stderr,
@@ -7257,7 +7275,7 @@ int main(int argc, char * argv[])
 								program_exit_code = EXIT_FAILURE;
 								goto done;
 							}
-							lopt.ivs_only = 1;
+                            lopt.ivs.required = true;
 						}
 						else if (strncasecmp(output_format_string, "kismet", 6)
 								 == 0)
@@ -7267,7 +7285,7 @@ int main(int argc, char * argv[])
 						else if (strncasecmp(output_format_string, "gps", 3)
 								 == 0)
 						{
-                            lopt.use_gpsd = 1;
+                            lopt.gpsd.required = true;
 						}
 						else if (strncasecmp(output_format_string, "netxml", 6)
 									 == 0
@@ -7294,7 +7312,7 @@ int main(int argc, char * argv[])
 						else if (strncasecmp(output_format_string, "logcsv", 6)
 								 == 0)
 						{
-							lopt.output_format_log_csv = 1;
+                            lopt.log_csv.required = true;
 						}
                         else if (strncasecmp(output_format_string, "wifi_scanner", 12) == 0)
                         {
@@ -7303,18 +7321,18 @@ int main(int argc, char * argv[])
                         else if (strncasecmp(output_format_string, "default", 7)
 								 == 0)
 						{
-							lopt.output_format_pcap = 1;
-							lopt.output_format_log_csv = 1;
+                            lopt.pcap_output.required = true;
+                            lopt.log_csv.required = true;
 
                             dump_contexts_initialise(&lopt, true);
                         }
 						else if (strncasecmp(output_format_string, "none", 4)
 								 == 0)
 						{
-							lopt.output_format_pcap = 0;
-							lopt.output_format_log_csv = 0;
-                            lopt.use_gpsd = 0;
-							lopt.ivs_only = 0;
+                            lopt.pcap_output.required = false;
+                            lopt.log_csv.required = false;
+                            lopt.gpsd.required = false;
+                            lopt.ivs.required = false;
 
                             dump_contexts_initialise(&lopt, false);
                         }
@@ -7534,12 +7552,12 @@ int main(int argc, char * argv[])
 	lopt.manufacturer_list = load_oui_file();
 
     /* Start the GPS tracker if requested. */
-    if (lopt.use_gpsd)
+    if (lopt.gpsd.required)
 	{
 		gps_tracker_initialise(&lopt.gps_context,
                                lopt.dump_prefix,
                                lopt.f_index,
-							   lopt.f_gps,
+                               lopt.gpsd.fp,
                                &lopt.do_exit);
 
 		if (!gps_tracker_start(&lopt.gps_context))
@@ -7630,7 +7648,7 @@ int main(int argc, char * argv[])
 
             lopt.sort.sort_required = true;
 
-            if (lopt.use_gpsd)
+            if (lopt.gpsd.required)
 			{
 				gps_tracker_update(&lopt.gps_context);
 			}
