@@ -212,7 +212,6 @@ static struct local_options
 	char decloak;
 
 	char is_berlin; /* is the switch --berlin set? */
-	int numaps; /* number of APs on the current list */
 	int maxnumaps; /* maximum nubers of APs on the list */
 	int maxaps; /* number of all APs found */
 	int berlin; /* number of seconds it takes in berlin to fill the whole screen
@@ -3637,7 +3636,8 @@ static void dump_print(
 {
 	time_t tt;
 	struct tm * lt;
-	int nlines, i, n;
+    int nlines; 
+    int i; 
 	char strbuf[1024];
 	char buffer[1024];
 	char ssid_list[512];
@@ -3648,9 +3648,7 @@ static void dump_print(
 	int columns_sta = 74;
 	int columns_na = 68;
 	size_t len;
-
-	int num_ap;
-	int num_sta;
+    int numaps = 0; /* Only used when 'berlin' mode is active. */
 
 	if (!lopt.singlechan)
 	{
@@ -3674,8 +3672,7 @@ static void dump_print(
 
 	if (lopt.is_berlin)
 	{
-		lopt.maxaps = 0;
-		lopt.numaps = 0;
+        lopt.maxaps = 0;
 
 		TAILQ_FOREACH_REVERSE(ap_cur, &lopt.ap_list, ap_list_head, entry)
 		{
@@ -3686,12 +3683,12 @@ static void dump_print(
 			{
 				continue;
 			}
-			lopt.numaps++;
+			numaps++;
 		}
 
-		if (lopt.numaps > lopt.maxnumaps)
+		if (numaps > lopt.maxnumaps)
 		{
-			lopt.maxnumaps = lopt.numaps;
+			lopt.maxnumaps = numaps;
 		}
 	}
 
@@ -3787,7 +3784,7 @@ static void dump_print(
 		snprintf(buffer,
 				 sizeof(buffer) - 1,
 				 " ][%3d/%3d/%4d ",
-				 lopt.numaps,
+				 numaps,
 				 lopt.maxnumaps,
 				 lopt.maxaps);
 	}
@@ -3885,8 +3882,6 @@ static void dump_print(
         nlines++;
         CHECK_END_OF_SCREEN_OR_GOTO(nlines, screen_height, done); 
 
-		num_ap = 0;
-
 		TAILQ_FOREACH_REVERSE(ap_cur, &lopt.ap_list, ap_list_head, entry)
 		{
 			/* skip APs with only one packet, or those older than 2 min.
@@ -3950,8 +3945,6 @@ static void dump_print(
 
 				continue;
 			}
-
-			num_ap++;
 
 			nlines++;
             CHECK_END_OF_SCREEN_OR_GOTO(nlines, screen_height, done);
@@ -4327,8 +4320,6 @@ static void dump_print(
         nlines++;
         CHECK_END_OF_SCREEN_OR_GOTO(nlines, screen_height, done); 
 
-		num_sta = 0;
-
 		TAILQ_FOREACH_REVERSE(ap_cur, &lopt.ap_list, ap_list_head, entry)
 		{
 			if (ap_cur->nb_pkt < 2
@@ -4376,8 +4367,6 @@ static void dump_print(
 					continue;
 				}
 
-				num_sta++;
-
 				nlines++;
                 CHECK_END_OF_SCREEN_OR_GOTO(nlines, screen_height, done); 
 
@@ -4418,6 +4407,9 @@ static void dump_print(
 
 				if (screen_width > (columns_sta - 6))
 				{
+                    size_t n;
+                    size_t i;
+
 					memset(ssid_list, 0, sizeof(ssid_list));
 
 					for (i = 0, n = 0; i < NB_PRB; i++)
@@ -4435,7 +4427,7 @@ static void dump_print(
 
 						n += (1 + strlen(st_cur->probes[i]));
 
-                        if (n >= (int)sizeof(ssid_list))
+                        if (n >= sizeof(ssid_list))
                         {
                             break;
                         }
@@ -6727,7 +6719,6 @@ int main(int argc, char * argv[])
 	lopt.update_interval_seconds = 0;
 	lopt.decloak = 1;
 	lopt.is_berlin = 0;
-	lopt.numaps = 0;
 	lopt.maxnumaps = 0;
 	lopt.berlin = 120;
 	lopt.show_ap = 1;
