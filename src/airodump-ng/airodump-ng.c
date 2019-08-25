@@ -6047,20 +6047,12 @@ static bool open_output_files(struct local_options * const options)
                 options->f_index,
                 AIRODUMP_NG_LOG_CSV_EXT);
 
-        options->log_csv.fp = fopen(filename, "wb+");
+        options->log_csv.fp = log_csv_file_open(filename);
         if (options->log_csv.fp == NULL)
         {
-            perror("fopen failed");
-            fprintf(stderr, "Could not create \"%s\".\n", filename);
-
             success = false;
             goto done;
         }
-
-        fprintf(options->log_csv.fp,
-                "LocalTime, GPSTime, ESSID, BSSID, Power, "
-                "Security, Latitude, Longitude, Latitude Error, "
-                "Longitude Error, Type\r\n");
     }
 
     if (options->gpsd.required)
@@ -6082,6 +6074,9 @@ static bool open_output_files(struct local_options * const options)
             success = false;
             goto done;
         }
+        /* Store the filename as it is possibly used to delete the 
+         * file at shutdown. There's possibly a better way to do this.
+         */
         options->gpsd.filename = strdup(filename);
     }
 
