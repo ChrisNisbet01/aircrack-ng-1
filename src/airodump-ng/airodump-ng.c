@@ -3973,11 +3973,7 @@ static void dump_print(
 			num_ap++;
 
 			nlines++;
-
-			if (nlines > (screen_height - 1))
-			{
-                return;
-            }
+            CHECK_END_OF_SCREEN_OR_GOTO(nlines, screen_height, done);
 
 			snprintf(strbuf,
 					 sizeof(strbuf),
@@ -4372,10 +4368,7 @@ static void dump_print(
 				continue;
 			}
 
-			if (nlines >= (screen_height - 1))
-			{
-				return;
-			}
+            CHECK_END_OF_SCREEN_OR_GOTO(nlines, screen_height, done);
 
 			if (lopt.p_selected_ap != NULL
 				&& MAC_ADDRESS_EQUAL(&lopt.selected_bssid, &ap_cur->bssid))
@@ -4405,11 +4398,7 @@ static void dump_print(
 				num_sta++;
 
 				nlines++;
-
-                if (nlines >= (screen_height - 1))
-                {
-                    return;
-                }
+                CHECK_END_OF_SCREEN_OR_GOTO(nlines, screen_height, done); 
 
                 if (MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
                 {
