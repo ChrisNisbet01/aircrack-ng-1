@@ -141,7 +141,7 @@ struct detected_frequencies_st
 
 struct sort_context_st
 {
-    int do_sort_always;
+    int always_sort;
     bool sort_required;
     ap_sort_context_st * sort_context;
 };
@@ -166,18 +166,18 @@ static struct local_options
     mac_address f_netmask; 
 
     struct shared_key_context_st shared_key; 
+    int check_shared_key; 
 
     struct essid_filter_context_st essid_filter;
 
 	char * dump_prefix;
 
     /* TODO: Stick all this card specific state into a structure. */
+    size_t num_cards;
     int channel[MAX_CARDS]; /* current channel #    */
 	int frequency[MAX_CARDS]; /* current frequency #    */
-    size_t max_consecutive_failed_interface_reads;
     size_t wi_consecutive_failed_reads[MAX_CARDS];
-
-    size_t num_cards;
+    size_t max_consecutive_failed_interface_reads; 
 
     pthread_t input_tid;
     int input_thread_pipe[2];
@@ -342,19 +342,18 @@ static struct local_options
     } pcap_output;
 
     int no_filename_index;
-    int no_shared_key; 
 
     /* Possibly appended to filenames of output dump files. value 
      * -1 indicates not to. 
      */
-    int f_index; 
+    int filename_index;
 } lopt;
 
 static void reset_sort_context(struct sort_context_st * const context)
 {
     ap_sort_context_free(context->sort_context);
     context->sort_context = ap_sort_context_alloc(SORT_BY_NOTHING);
-    context->do_sort_always = 0;
+    context->always_sort = 0;
 }
 
 static void reset_selections(struct local_options * const options)
@@ -3403,7 +3402,7 @@ write_packet:
         }
     }
 
-    if (options->record_data && !options->no_shared_key)
+    if (options->record_data && options->check_shared_key)
 	{
         if ((h80211[0] & IEEE80211_FC0_TYPE_MASK) == IEEE80211_FC0_TYPE_MGT
             && (h80211[0] & IEEE80211_FC0_SUBTYPE_MASK) == IEEE80211_FC0_SUBTYPE_AUTH)
@@ -3413,7 +3412,7 @@ write_packet:
                              h80211, 
                              caplen, 
                              options->dump_prefix,
-                             options->f_index,
+                             options->filename_index,
                              true);
 		}
 	}
@@ -5795,9 +5794,9 @@ static void handle_input_key(
 
     if (keycode == KEY_r)
     {
-        options->sort.do_sort_always = !options->sort.do_sort_always;
+        options->sort.always_sort = !options->sort.always_sort;
         char const * const message =
-            options->sort.do_sort_always ? "activated" : "deactivated";
+            options->sort.always_sort ? "activated" : "deactivated";
 
         snprintf(options->message,
                  sizeof(options->message),
@@ -5955,11 +5954,11 @@ static bool open_output_files(struct local_options * const options)
 									 */
     if (options->no_filename_index)
     {
-        options->f_index = -1;
+        options->filename_index = -1;
     }
     else
     {
-        options->f_index = find_first_free_file_index(options->dump_prefix);
+        options->filename_index = find_first_free_file_index(options->dump_prefix);
     }
 
 	/* Create a buffer of the length of the prefix + '-' + 2 numbers + '.'
@@ -5982,7 +5981,7 @@ static bool open_output_files(struct local_options * const options)
                 ofn, 
                 ofn_len, 
                 options->dump_prefix, 
-                options->f_index, 
+                options->filename_index,
                 AIRODUMP_NG_CSV_EXT);
 
         options->dump[dump_type_csv].context =
@@ -6011,7 +6010,7 @@ static bool open_output_files(struct local_options * const options)
                 ofn,
                 ofn_len,
                 options->dump_prefix,
-                options->f_index,
+                options->filename_index,
                 KISMET_CSV_EXT);
 
         options->dump[dump_type_kismet_csv].context =
@@ -6040,7 +6039,7 @@ static bool open_output_files(struct local_options * const options)
                 ofn,
                 ofn_len,
                 options->dump_prefix,
-                options->f_index,
+                options->filename_index,
                 KISMET_NETXML_EXT);
 
         options->dump[dump_type_kismet_netxml].context =
@@ -6069,7 +6068,7 @@ static bool open_output_files(struct local_options * const options)
                 ofn,
                 ofn_len,
                 options->dump_prefix,
-                options->f_index,
+                options->filename_index,
                 WIFI_EXT);
 
         options->dump[dump_type_wifi_scanner].context =
@@ -6098,7 +6097,7 @@ static bool open_output_files(struct local_options * const options)
                 ofn,
                 ofn_len,
                 options->dump_prefix,
-                options->f_index,
+                options->filename_index,
                 AIRODUMP_NG_CAP_EXT);
 
         options->pcap_output.writer =
@@ -6119,7 +6118,7 @@ static bool open_output_files(struct local_options * const options)
                 ofn,
                 ofn_len,
                 options->dump_prefix,
-                options->f_index,
+                options->filename_index,
                 IVS2_EXTENSION);
 
         options->ivs.fp = ivs_log_open(filename);
@@ -6137,7 +6136,7 @@ static bool open_output_files(struct local_options * const options)
                 ofn,
                 ofn_len,
                 options->dump_prefix,
-                options->f_index,
+                options->filename_index,
                 AIRODUMP_NG_LOG_CSV_EXT);
 
         options->log_csv.fp = log_csv_file_open(filename);
@@ -6155,7 +6154,7 @@ static bool open_output_files(struct local_options * const options)
                 ofn,
                 ofn_len,
                 options->dump_prefix,
-                options->f_index,
+                options->filename_index,
                 AIRODUMP_NG_GPS_EXT);
 
         options->gpsd.fp = fopen(filename, "wb+");
@@ -6460,7 +6459,7 @@ static void update_console(struct local_options * const options)
 {
     struct sort_context_st * const sort_context = &options->sort;
 
-    if (sort_context->sort_required || sort_context->do_sort_always)
+    if (sort_context->sort_required || sort_context->always_sort)
     {
         dump_sort(options, sort_context->sort_context);
         sort_context->sort_required = false;
@@ -6620,7 +6619,7 @@ int main(int argc, char * argv[])
            {"file-reset-minutes", 1, 0, 'P'},
            {"ignore-negative-one", 0, &lopt.ignore_negative_one, 1},
            {"no-filename-index", 0, &lopt.no_filename_index, 1},
-           {"no-shared-key", 0, &lopt.no_shared_key, 1},
+           {"no-shared-key", 0, &lopt.check_shared_key, 0},
            {"manufacturer", 0, 0, 'M' },
 		   {"uptime", 0, 0, 'U'},
 		   {"write-interval", 1, 0, 'I'},
@@ -6667,6 +6666,7 @@ int main(int argc, char * argv[])
     lopt.shared_key.sk_len2 = 0;
     lopt.shared_key.sk_start = 0;
     memset(lopt.shared_key.sharedkey, '\x00', sizeof(lopt.shared_key.sharedkey));
+    lopt.check_shared_key = 1; 
 
     lopt.encryption_filter = 0;
 	lopt.asso_client = 0;
@@ -6674,6 +6674,7 @@ int main(int argc, char * argv[])
 	lopt.active_scan_sim = 0;
 	lopt.update_interval_seconds = 0;
 	lopt.decloak = 1;
+
 	lopt.is_berlin = 0;
 	lopt.maxnumaps = 0;
 	lopt.berlin = 120;
