@@ -2939,7 +2939,9 @@ static bool parse_packet_data(
 
         /* Check if 802.11e (QoS) */
         if ((h80211[0] & 0x80) == 0x80)
+        {
             z += 2;
+        }
 
         if (z + 26 > caplen)
         {
@@ -2950,7 +2952,8 @@ static bool parse_packet_data(
         z += 6; // skip LLC header
 
         /* check ethertype == EAPOL */
-        if (h80211[z] == 0x88 && h80211[z + 1] == 0x8E
+        if (h80211[z] == 0x88
+            && h80211[z + 1] == 0x8E
             && (h80211[1] & 0x40) != 0x40)
         {
             ap_cur->EAP_detected = 1;
@@ -2965,7 +2968,8 @@ static bool parse_packet_data(
 
             /* frame 1: Pairwise == 1, Install == 0, Ack == 1, MIC == 0 */
 
-            if ((h80211[z + 6] & 0x08) != 0 && (h80211[z + 6] & 0x40) == 0
+            if ((h80211[z + 6] & 0x08) != 0
+                && (h80211[z + 6] & 0x40) == 0
                 && (h80211[z + 6] & 0x80) != 0
                 && (h80211[z + 5] & 0x01) == 0)
             {
@@ -2975,7 +2979,8 @@ static bool parse_packet_data(
 
                 if (h80211[z + 99] == 0xdd) // RSN
                 {
-                    if (h80211[z + 101] == 0x00 && h80211[z + 102] == 0x0f
+                    if (h80211[z + 101] == 0x00
+                        && h80211[z + 102] == 0x0f
                         && h80211[z + 103] == 0xac) // OUI: IEEE8021
                     {
                         if (h80211[z + 104] == 0x04) // OUI SUBTYPE
@@ -3014,7 +3019,8 @@ static bool parse_packet_data(
                 goto done;
             }
 
-            if ((h80211[z + 6] & 0x08) != 0 && (h80211[z + 6] & 0x40) == 0
+            if ((h80211[z + 6] & 0x08) != 0
+                && (h80211[z + 6] & 0x40) == 0
                 && (h80211[z + 6] & 0x80) == 0
                 && (h80211[z + 5] & 0x01) != 0)
             {
@@ -3053,7 +3059,8 @@ static bool parse_packet_data(
 
             /* frame 3: Pairwise == 1, Install == 1, Ack == 1, MIC == 1 */
 
-            if ((h80211[z + 6] & 0x08) != 0 && (h80211[z + 6] & 0x40) != 0
+            if ((h80211[z + 6] & 0x08) != 0
+                && (h80211[z + 6] & 0x40) != 0
                 && (h80211[z + 6] & 0x80) != 0
                 && (h80211[z + 5] & 0x01) != 0)
             {
@@ -4966,6 +4973,9 @@ static struct wif * reopen_card(struct wif * const old)
      */
     strlcpy(ifnam, wi_get_ifname(old), sizeof ifnam);
 
+    /* TODO: It might have been nice is there was a wi_reopen() call
+     * to deal with the closing, opening and interface name handling.
+     */
     wi_close(old);
     new_wi = wi_open(ifnam);
 
@@ -5214,7 +5224,10 @@ static void check_frequency_on_cards(
 {
     for (size_t i = 0; i < num_cards; i++)
 	{
-        check_frequency_on_card(wi[i], current_frequencies[i], msg_buffer, msg_buffer_size);
+        check_frequency_on_card(wi[i],
+                                current_frequencies[i],
+                                msg_buffer,
+                                msg_buffer_size);
 	}
 }
 
@@ -5279,7 +5292,8 @@ static void detect_frequency_range(
     int const end_freq)
 {
     for (int freq = start_freq;
-          detected_frequencies->count < detected_frequencies->table_size && freq <= end_freq;
+          detected_frequencies->count < detected_frequencies->table_size
+          && freq <= end_freq;
           freq += 5)
     {
         if (wi_set_freq(wi, freq) == 0)
@@ -5288,15 +5302,17 @@ static void detect_frequency_range(
             detected_frequencies->count++;
         }
 
-        int const channel_13_freq = 2482;
+        static int const channel_13_freq = 2482;
 
         if (freq == channel_13_freq)
         {
-            int const channel_14_freq = 2484;
+            static int const channel_14_freq = 2484;
+
             // special case for chan 14, as its 12MHz away from 13, not 5MHz
             if (wi_set_freq(wi, channel_14_freq) == 0)
             {
-                detected_frequencies->frequencies[detected_frequencies->count] = channel_14_freq;
+                detected_frequencies->frequencies[detected_frequencies->count] =
+                    channel_14_freq;
                 detected_frequencies->count++;
             }
         }
@@ -5311,7 +5327,8 @@ static void detected_frequencies_initialise(
     detected_frequencies->table_size = max_frequencies;
     // field for frequencies supported
     detected_frequencies->frequencies =
-        calloc(detected_frequencies->table_size, sizeof *detected_frequencies->frequencies);
+        calloc(detected_frequencies->table_size,
+               sizeof *detected_frequencies->frequencies);
 
     ALLEGE(detected_frequencies->frequencies != NULL);
 }
@@ -5330,7 +5347,8 @@ static void detect_frequencies(
 {
 	REQUIRE(wi != NULL);
 
-    size_t const max_freq_num = 2048; // should be enough to keep all available channels
+    // should be enough to keep all available channels
+    static size_t const max_freq_num = 2048;
 
 	printf("Checking available frequencies; this could take few seconds.\n");
 
@@ -6379,6 +6397,7 @@ static int capture_packet_from_cards(
             max_fd = interface_fd;
         }
     }
+
     struct timeval tv0 =
     {
         .tv_sec = options->update_interval_seconds,
@@ -6559,7 +6578,7 @@ static void options_initialise(struct local_options * const options)
     options->shared_key.sk_len = 0;
     options->shared_key.sk_len2 = 0;
     options->shared_key.sk_start = 0;
-    memset(options->shared_key.sharedkey, '\x00', sizeof(options->shared_key.sharedkey));
+    memset(options->shared_key.sharedkey, 0, sizeof(options->shared_key.sharedkey));
     options->check_shared_key = 1;
 
     options->filename.include_index = 1;
