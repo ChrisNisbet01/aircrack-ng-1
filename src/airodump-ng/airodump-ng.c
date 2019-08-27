@@ -379,8 +379,8 @@ static void clear_ap_marking(struct ap_list_head * const ap_list)
 
     TAILQ_FOREACH(ap_cur, ap_list, entry)
     {
-        ap_cur->marked = 0;
-        ap_cur->marked_color = TEXT_RED;
+        ap_cur->display.marked = false;
+        ap_cur->display.color = TEXT_RED;
     }
 }
 
@@ -433,22 +433,22 @@ static void color_on(struct local_options * const options)
 				color++; /* FIXME: Is this correct? Set to 1 instead? */
 			}
 
-			if (!ap_cur->marked)
+			if (!ap_cur->display.marked)
 			{
-				ap_cur->marked = 1;
+				ap_cur->display.marked = true;
 				if (MAC_ADDRESS_IS_BROADCAST(&ap_cur->bssid))
 				{
-					ap_cur->marked_color = TEXT_RED;
+					ap_cur->display.color = TEXT_RED;
 				}
 				else
 				{
-					ap_cur->marked_color = color;
+					ap_cur->display.color = color;
                     color++;
 				}
 			}
 			else
 			{
-				ap_cur->marked_color = TEXT_RED;
+				ap_cur->display.color = TEXT_RED;
 			}
 		}
 	}
@@ -1437,7 +1437,7 @@ static void ap_info_initialise(
 
     TAILQ_INIT(&ap_cur->pkt_list);
 
-    ap_cur->marked_color = TEXT_RED;
+    ap_cur->display.color = TEXT_RED;
 
     /* 802.11n and ac */
     ap_cur->channel_width = CHANNEL_22MHZ; // 20MHz by default
@@ -3925,17 +3925,17 @@ static void dump_print(
 			{
                 if (options->mark_cur_ap)
 				{
-					if (ap_cur->marked == 0)
+					if (!ap_cur->display.marked)
 					{
-						ap_cur->marked = 1;
+						ap_cur->display.marked = true;
 					}
 					else
 					{
-						ap_cur->marked_color++;
-						if (ap_cur->marked_color > TEXT_MAX_COLOR)
+						ap_cur->display.color++;
+						if (ap_cur->display.color > TEXT_MAX_COLOR)
 						{
-							ap_cur->marked_color = TEXT_RED;
-							ap_cur->marked = 0;
+							ap_cur->display.color = TEXT_RED;
+							ap_cur->display.marked = false;
 						}
 					}
                     options->mark_cur_ap = 0;
@@ -3944,9 +3944,9 @@ static void dump_print(
                 MAC_ADDRESS_COPY(&options->selected_bssid, &ap_cur->bssid);
 			}
 
-			if (ap_cur->marked)
+			if (ap_cur->display.marked)
 			{
-				textcolor_fg(ap_cur->marked_color);
+				textcolor_fg(ap_cur->display.color);
 			}
 
 			memset(strbuf + len, ' ', sizeof(strbuf) - len - 1);
@@ -4096,7 +4096,7 @@ static void dump_print(
 			console_puts(strbuf);
 
             if ((options->p_selected_ap != NULL && options->p_selected_ap == ap_cur)
-				|| ap_cur->marked)
+				|| ap_cur->display.marked)
 			{
 				textstyle(TEXT_RESET);
 			}
@@ -4154,9 +4154,9 @@ static void dump_print(
 				textstyle(TEXT_REVERSE);
 			}
 
-			if (ap_cur->marked)
+			if (ap_cur->display.marked)
 			{
-				textcolor_fg(ap_cur->marked_color);
+				textcolor_fg(ap_cur->display.color);
 			}
 
             TAILQ_FOREACH_REVERSE(st_cur, &options->sta_list, sta_list_head, entry)
@@ -4232,7 +4232,7 @@ static void dump_print(
 
             if ((options->p_selected_ap != NULL
                  && MAC_ADDRESS_EQUAL(&options->selected_bssid, &ap_cur->bssid))
-				|| ap_cur->marked)
+				|| ap_cur->display.marked)
 			{
 				textstyle(TEXT_RESET);
 			}
