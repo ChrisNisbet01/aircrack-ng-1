@@ -14,11 +14,6 @@ struct ubus_state_st
     struct uloop_timeout retry;
 };
 
-static void
-ubus_add_fd(struct ubus_context * const ubus_ctx)
-{
-    ubus_add_uloop(ubus_ctx);
-}
 
 static void
 ubus_reconnect_timer(struct uloop_timeout * timeout)
@@ -41,7 +36,7 @@ ubus_reconnect_timer(struct uloop_timeout * timeout)
     DPRINTF("Reconnected to ubus, new id: %08x\n", state->ubus_ctx.local_id);
 
     state->connected = true;
-    ubus_add_fd(&state->ubus_ctx);
+    ubus_add_uloop(&state->ubus_ctx);
 }
 
 static void
@@ -80,7 +75,7 @@ ubus_initialise(char const * const path)
     state->connected = true;
     state->ubus_ctx.connection_lost = ubus_connection_lost;
 
-    ubus_add_fd(&state->ubus_ctx);
+    ubus_add_uloop(&state->ubus_ctx);
 
     success = true;
 
