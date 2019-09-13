@@ -331,7 +331,7 @@ static struct local_options
 	bool relative_time; /* read PCAP file in psuedo-real-time */
 
 	time_t filter_seconds;
-	
+
 	size_t max_node_age_seconds;
 
 	bool record_data;
@@ -7996,8 +7996,8 @@ int main(int argc, char * argv[])
         uloop_fd_add(&lopt.ubus.channel_hopper_fd, ULOOP_BLOCKING | ULOOP_READ);
 
         int const pcap_fd_handle = pcap_fd(lopt.pcap_reader_context);
-        fprintf(stderr, "pcap handle %d\n", pcap_fd_handle);
-        if (pcap_fd_handle >= 0)
+
+		if (pcap_fd_handle >= 0)
         {
             memset(&lopt.ubus.pcap, 0, sizeof lopt.ubus.pcap);
             lopt.ubus.pcap.cb = ubus_pcap_reader;
