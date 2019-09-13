@@ -6843,6 +6843,89 @@ static void ubus_card_reader(struct uloop_fd * fd, unsigned int events)
         options->do_exit = true;
     }
 }
+
+static bool do_ubus(struct local_options * const options)
+{
+	bool had_error;
+
+	options->ubus.state = ubus_initialise(options->ubus.path);
+	if (options->ubus.state == NULL)
+	{
+		perror("failed to initialise UBUS");
+		had_error = true;
+		goto done;
+	}
+	options->ubus.refresh.cb = ubus_refresh_cb;
+	uloop_timeout_set(&options->ubus.refresh, REFRESH_RATE / 1000);
+
+	options->ubus.output_dump.cb = ubus_output_dump;
+	uloop_timeout_set(&options->ubus.output_dump, options->file_write_interval * 1000);
+
+	options->ubus.event_dump.cb = ubus_event_dump;
+	uloop_timeout_set(&options->ubus.event_dump, options->filter_seconds * 1000);
+
+	options->ubus.generic_refresh.cb = ubus_generic_refresh;
+	uloop_timeout_set(&options->ubus.generic_refresh, generic_update_interval_seconds * 1000);
+
+	if (options->active_scan_sim > 0)
+	{
+		options->ubus.active_scan.cb = ubus_active_scan;
+		uloop_timeout_set(&options->ubus.active_scan, options->active_scan_sim * 1000);
+	}
+
+	options->ubus.half_second.cb = ubus_half_second;
+	uloop_timeout_set(&options->ubus.half_second, half_second_interval_milliseconds);
+
+	if (options->interactive_mode)
+	{
+		memset(&options->ubus.user_input_fd, 0, sizeof options->ubus.user_input_fd);
+		options->ubus.user_input_fd.cb = ubus_user_input_fd;
+		options->ubus.user_input_fd.fd = options->input_thread_pipe[0];
+		uloop_fd_add(&options->ubus.user_input_fd, ULOOP_BLOCKING | ULOOP_READ);
+	}
+
+	memset(&options->ubus.signal_fd, 0, sizeof options->ubus.signal_fd);
+	options->ubus.signal_fd.cb = ubus_signal_fd;
+	options->ubus.signal_fd.fd = options->signal_event_pipe[0];
+	uloop_fd_add(&options->ubus.signal_fd, ULOOP_BLOCKING | ULOOP_READ);
+
+	memset(&options->ubus.channel_hopper_fd, 0, sizeof options->ubus.channel_hopper_fd);
+	options->ubus.channel_hopper_fd.cb = ubus_channel_hopper_fd;
+	options->ubus.channel_hopper_fd.fd = options->channel_hopper_pipe[0];
+	uloop_fd_add(&options->ubus.channel_hopper_fd, ULOOP_BLOCKING | ULOOP_READ);
+
+	int const pcap_fd_handle = pcap_fd(options->pcap_reader_context);
+
+	if (pcap_fd_handle >= 0)
+	{
+		memset(&options->ubus.pcap, 0, sizeof options->ubus.pcap);
+		options->ubus.pcap.cb = ubus_pcap_reader;
+		uloop_timeout_set(&options->ubus.pcap, 10);
+	}
+	else if (options->s_iface != NULL)
+	{
+		for (size_t i = 0;  i < MAX_CARDS; i++)
+		{
+			if (options->wi[i] != NULL)
+			{
+				memset(&options->ubus.interfaces[i].fd, 0, sizeof options->ubus.interfaces[i].fd);
+				options->ubus.interfaces[i].fd.cb = ubus_card_reader;
+				options->ubus.interfaces[i].fd.fd = wi_fd(options->wi[i]);
+				uloop_fd_add(&options->ubus.interfaces[i].fd, ULOOP_BLOCKING | ULOOP_READ);
+			}
+		}
+	}
+
+	uloop_run();
+	ubus_done(options->ubus.state);
+	uloop_done();
+
+	had_error = false;
+
+done:
+	return had_error;
+}
+
 #endif
 
 static bool main_loop_run(struct local_options * const options)
@@ -7892,6 +7975,9 @@ int main(int argc, char * argv[])
 #if defined(INCLUDE_UBUS)
     if (lopt.ubus.do_ubus)
     {
+		/* uloop_init() needs to be done before the signal handlers are
+		 * overridden, as this application wants to monitor some of the signals.
+		 */
         uloop_init();
     }
 #endif
@@ -7949,78 +8035,7 @@ int main(int argc, char * argv[])
 #if defined(INCLUDE_UBUS)
     if (lopt.ubus.do_ubus)
     {
-        lopt.ubus.state = ubus_initialise(lopt.ubus.path);
-        if (lopt.ubus.state == NULL)
-        {
-            perror("failed to initialise UBUS");
-            program_exit_code = EXIT_FAILURE;
-            goto done;
-        }
-        lopt.ubus.refresh.cb = ubus_refresh_cb;
-        uloop_timeout_set(&lopt.ubus.refresh, REFRESH_RATE / 1000);
-
-        lopt.ubus.output_dump.cb = ubus_output_dump;
-        uloop_timeout_set(&lopt.ubus.output_dump, lopt.file_write_interval * 1000);
-
-        lopt.ubus.event_dump.cb = ubus_event_dump;
-        uloop_timeout_set(&lopt.ubus.event_dump, lopt.filter_seconds * 1000);
-
-        lopt.ubus.generic_refresh.cb = ubus_generic_refresh;
-        uloop_timeout_set(&lopt.ubus.generic_refresh, generic_update_interval_seconds * 1000);
-
-        if (lopt.active_scan_sim > 0)
-        {
-            lopt.ubus.active_scan.cb = ubus_active_scan;
-            uloop_timeout_set(&lopt.ubus.active_scan, lopt.active_scan_sim * 1000);
-        }
-
-        lopt.ubus.half_second.cb = ubus_half_second;
-        uloop_timeout_set(&lopt.ubus.half_second, half_second_interval_milliseconds);
-
-        if (lopt.interactive_mode)
-        {
-            memset(&lopt.ubus.user_input_fd, 0, sizeof lopt.ubus.user_input_fd);
-            lopt.ubus.user_input_fd.cb = ubus_user_input_fd;
-            lopt.ubus.user_input_fd.fd = lopt.input_thread_pipe[0];
-            uloop_fd_add(&lopt.ubus.user_input_fd, ULOOP_BLOCKING | ULOOP_READ);
-        }
-
-        memset(&lopt.ubus.signal_fd, 0, sizeof lopt.ubus.signal_fd);
-        lopt.ubus.signal_fd.cb = ubus_signal_fd;
-        lopt.ubus.signal_fd.fd = lopt.signal_event_pipe[0];
-        uloop_fd_add(&lopt.ubus.signal_fd, ULOOP_BLOCKING | ULOOP_READ);
-
-        memset(&lopt.ubus.channel_hopper_fd, 0, sizeof lopt.ubus.channel_hopper_fd);
-        lopt.ubus.channel_hopper_fd.cb = ubus_channel_hopper_fd;
-        lopt.ubus.channel_hopper_fd.fd = lopt.channel_hopper_pipe[0];
-        uloop_fd_add(&lopt.ubus.channel_hopper_fd, ULOOP_BLOCKING | ULOOP_READ);
-
-        int const pcap_fd_handle = pcap_fd(lopt.pcap_reader_context);
-
-		if (pcap_fd_handle >= 0)
-        {
-            memset(&lopt.ubus.pcap, 0, sizeof lopt.ubus.pcap);
-            lopt.ubus.pcap.cb = ubus_pcap_reader;
-            uloop_timeout_set(&lopt.ubus.pcap, 10);
-        }
-        else if (lopt.s_iface != NULL)
-        {
-            for (size_t i = 0;  i < MAX_CARDS; i++)
-            {
-                if (lopt.wi[i] != NULL)
-                {
-                    memset(&lopt.ubus.interfaces[i].fd, 0, sizeof lopt.ubus.interfaces[i].fd);
-                    lopt.ubus.interfaces[i].fd.cb = ubus_card_reader;
-                    lopt.ubus.interfaces[i].fd.fd = wi_fd(lopt.wi[i]);
-                    uloop_fd_add(&lopt.ubus.interfaces[i].fd, ULOOP_BLOCKING | ULOOP_READ);
-                }
-            }
-        }
-
-        uloop_run();
-        ubus_done(lopt.ubus.state);
-        uloop_done();
-        lopt.do_exit = true;
+		had_error = do_ubus(&lopt);
     }
     else
 #endif
