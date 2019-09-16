@@ -104,6 +104,7 @@ AS_IF([test "$UBUS_SUPPORT" = yes -a "$HAVE_UBUS" = yes], [
 		UBUS_LIBS=-lubus
 		AC_SUBST(UBUS_LIBS)
 		AC_DEFINE([INCLUDE_UBUS], [1], [Define this if you want ubus event support])
+        UBUS=yes
 	])
 	AC_SEARCH_LIBS([uloop_init], [ubox], [
 		UBOX_LIBS=-lubox
@@ -111,6 +112,6 @@ AS_IF([test "$UBUS_SUPPORT" = yes -a "$HAVE_UBUS" = yes], [
 	])
 ])
 
-AM_CONDITIONAL([UBUS_SUPPORT], [test "$UBUS_SUPPORT" = yes])
-AM_CONDITIONAL([HAVE_UBUS], [test "$HAVE_UBUS" = yes])
+AM_CONDITIONAL([UBUS_SUPPORT], [test "$UBUS" = yes])
+
 ])

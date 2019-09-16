@@ -202,7 +202,6 @@ AIRCRACK_NG_TSAN
 #
 # Automake
 #
-AM_CONDITIONAL([INCLUDE_UBUS], [test "$UBUS_SUPPORT" = yes -a "$HAVE_UBUS" = yes])
 AM_CONDITIONAL([HAVE_AIRPCAP_OR_PCAP], [test "$AIRPCAP" = yes -o "$PCAP_FOUND" = yes])
 AM_CONDITIONAL([MULTIBIN], [test "$with_multibin" = yes])
 AM_CONDITIONAL([ENABLE_INSTALLED_TESTS], [test "nope" = yes]) # for glib tests
@@ -331,7 +330,7 @@ ${PACKAGE} ${VERSION}
     Zlib:                        ${HAVE_ZLIB}
 
   Features:
-    UBUS:                        ${INCLUDE_UBUS}
+    UBUS:                        ${UBUS}
     CMAC Support:                ${HAVE_CMAC}
     Experimental Extra Scripts:  ${EXT_SCRIPTS}
     Experimental Features:       ${EXPERIMENTAL}
