@@ -5842,7 +5842,7 @@ static void ubus_output_dump(struct uloop_timeout * timeout)
 
 static void ubus_event_dump(struct uloop_timeout * timeout)
 {
-    struct local_options * const options =
+    struct local_options const * const options =
         container_of(timeout, struct local_options, ubus.event_dump);
 
     ubus_send_nodes_event(options->ubus.state,
