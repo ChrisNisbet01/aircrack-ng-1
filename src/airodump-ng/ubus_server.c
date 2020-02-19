@@ -6,7 +6,7 @@ struct ubus_server_context_st
     struct ubus_object wifi_scanner_object;
     struct ubus_context * ubus_ctx;
     struct ap_list_head * ap_list;
-    struct sta_list_head * sta_list;
+    struct station_node_head * sta_list;
 };
 
 static int ap_list_method(
@@ -75,7 +75,7 @@ typedef struct ubus_server_context_st ubus_server_context_st;
 struct ubus_server_context_st * ubus_server_initialise(
     struct ubus_context * const ubus_ctx,
     struct ap_list_head * const ap_list,
-    struct sta_list_head * const sta_list)
+    struct station_node_head * const sta_list)
 {
     ubus_server_context_st * server_context =
         calloc(1, sizeof *server_context);
