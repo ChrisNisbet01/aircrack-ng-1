@@ -32,7 +32,7 @@ static void write_cap_file(FILE * fp,
 
 	pkh.len = pkh.caplen = caplen;
 	pkh.tv_sec = (int32_t) tv.tv_sec;
-	pkh.tv_usec = (int32_t)((tv.tv_usec & ~0x1ff) + ri_power + 64);
+	pkh.tv_usec = (int32_t) tv.tv_usec;
 
 	/* Write the header. */
 	if (fwrite(&pkh, 1, sizeof(pkh), fp) != sizeof(pkh))
