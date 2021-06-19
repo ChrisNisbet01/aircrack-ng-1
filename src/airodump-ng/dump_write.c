@@ -218,7 +218,7 @@ int dump_write_airodump_ng_logcsv_add_ap(FILE * fp,
 	fprintf(fp, "%d,", ri_power);
 
 	// Network Security
-	if ((ap_cur->security & (STD_OPN | STD_WEP | STD_WPA | STD_WPA2)) == 0)
+	if ((ap_cur->security & (STD_OPN | STD_WEP | STD_WPA | STD_WPA2 | AUTH_SAE | AUTH_OWE)) == 0)
 	{
 		fputs(" ", fp);
 	}
