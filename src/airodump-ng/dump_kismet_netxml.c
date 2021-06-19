@@ -58,7 +58,7 @@ static char * sanitize_xml(unsigned char * text, size_t length)
 						current_text_len = strlen(newtext);
 						snprintf(newtext + current_text_len,
 								 len - current_text_len + 1,
-								 "%4x",
+								 "%04x",
 								 *pos);
 						strncat(newtext, ";", len);
 					}
@@ -280,6 +280,24 @@ static int dump_write_kismet_netxml_client_info(FILE * const fp,
 	return 0;
 }
 
+static int is_essid_hidden(const uint8_t * essid, const size_t length)
+{
+	if (essid == NULL || length == 0)
+	{
+		return 1;
+	}
+
+	for (size_t i = 0; i < length; ++i)
+	{
+		if (essid[i] != 0)
+		{
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
 #define NETXML_ENCRYPTION_TAG "%s<encryption>%s</encryption>\n"
 static void kismet_dump_write_netxml(
 	FILE * const fp,
@@ -395,16 +413,17 @@ static void kismet_dump_write_netxml(
 			fprintf(fp, NETXML_ENCRYPTION_TAG, "\t\t\t", "WEP40");
 
 		/* ESSID */
-		fprintf(fp,
-				"\t\t\t<essid cloaked=\"%s\">",
-				(ap_cur->essid[0] == '\0') ? "true" : "false");
-		essid = sanitize_xml(ap_cur->essid, (size_t) ap_cur->ssid_length);
-		if (essid != NULL)
+		if (!is_essid_hidden(ap_cur->essid, (size_t) ap_cur->ssid_length))
 		{
-			fprintf(fp, "%s", essid);
-			free(essid);
+			essid = sanitize_xml(ap_cur->essid, (size_t) ap_cur->ssid_length);
 		}
-		fprintf(fp, "</essid>\n");
+
+		fprintf(fp,
+				"\t\t\t<essid cloaked=\"%s\">%s</essid>\n",
+				(essid) ? "false" : "true",
+				(essid) ? essid : "");
+		free(essid);
+		essid = NULL;
 
 		/* End of SSID tag */
 		fprintf(fp, "\t\t</SSID>\n");
