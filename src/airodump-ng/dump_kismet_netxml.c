@@ -190,12 +190,7 @@ static int dump_write_kismet_netxml_client_info(FILE * const fp,
 															: client->rate_to;
 	fprintf(fp,
 			"\t\t\t<maxseenrate>%.6f</maxseenrate>\n",
-			client_max_rate /
-#if defined(__x86_64__) && defined(__CYGWIN__)
-				(0.0f + 1000000));
-#else
-				1000000.0);
-#endif
+			client_max_rate / 1000000.0f);
 
 	/* Those 2 lines always stays the same */
 	fprintf(fp, "\t\t\t<carrier>IEEE 802.11b+</carrier>\n");
@@ -643,12 +638,7 @@ static void kismet_dump_write_netxml(
 								  : st_cur->rate_to;
 			fprintf(fp,
 					"\t\t<maxseenrate>%.6f</maxseenrate>\n",
-					client_max_rate /
-#if defined(__x86_64__) && defined(__CYGWIN__)
-						(0.0f + 1000000));
-#else
-						1000000.0);
-#endif
+					client_max_rate / 1000000.0f);
 
 			fprintf(fp, "\t\t<carrier>IEEE 802.11b+</carrier>\n");
 			fprintf(fp, "\t\t<encoding>CCK</encoding>\n");
