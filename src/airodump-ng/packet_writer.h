@@ -14,8 +14,7 @@ typedef struct packet_writer_context_st packet_writer_context_st;
 
 void packet_writer_write(struct packet_writer_context_st * const context,
 						 uint8_t const * const packet,
-						 size_t const packet_length,
-						 int32_t const ri_power);
+						 size_t const packet_length);
 
 void packet_writer_close(struct packet_writer_context_st * const context);
 

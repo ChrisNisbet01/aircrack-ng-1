@@ -10,15 +10,14 @@
 
 void packet_writer_write(struct packet_writer_context_st * const context,
 						 uint8_t const * const packet,
-						 size_t const packet_length,
-						 int32_t const ri_power)
+						 size_t const packet_length)
 {
 	if (context == NULL)
 	{
 		goto done;
 	}
 
-	context->write(context->priv, packet, packet_length, ri_power);
+	context->write(context->priv, packet, packet_length);
 
 done:
 	return;

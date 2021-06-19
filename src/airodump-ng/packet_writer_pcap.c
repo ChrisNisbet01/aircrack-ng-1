@@ -17,8 +17,7 @@ struct pcap_writer_context_st
 
 static void write_cap_file(FILE * fp,
 						   uint8_t const * const h80211,
-						   size_t const caplen,
-						   int32_t const ri_power)
+						   size_t const caplen)
 {
 	struct pcap_pkthdr pkh;
 	struct timeval tv;
@@ -61,12 +60,11 @@ static void context_free(struct pcap_writer_context_st * const context)
 
 static void pcap_write(void * const priv,
 					   uint8_t const * const packet,
-					   size_t const packet_length,
-					   int32_t const ri_power)
+					   size_t const packet_length)
 {
 	struct pcap_writer_context_st * const context = priv;
 
-	write_cap_file(context->fp, packet, packet_length, ri_power);
+	write_cap_file(context->fp, packet, packet_length);
 }
 
 static void pcap_context_close(struct pcap_writer_context_st * const context)

@@ -10,8 +10,7 @@ struct packet_writer_context_st
 
 	void (*write)(void * const priv,
 				  uint8_t const * const packet,
-				  size_t const packet_length,
-				  int32_t const ri_power);
+				  size_t const packet_length);
 
 	void (*close)(void * const priv);
 };

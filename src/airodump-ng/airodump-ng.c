@@ -1636,13 +1636,12 @@ done:
 
 static void update_packet_capture_files(struct local_options * const options,
 										uint8_t const * const packet,
-										size_t const packet_length,
-										int32_t const ri_power)
+										size_t const packet_length)
 {
 	if (options->pcap_output.writer != NULL)
 	{
 		packet_writer_write(
-			options->pcap_output.writer, packet, packet_length, ri_power);
+			options->pcap_output.writer, packet, packet_length);
 	}
 }
 
@@ -3437,7 +3436,7 @@ write_packet:
 		return;
 	}
 
-	update_packet_capture_files(options, h80211, caplen, ri->ri_power);
+	update_packet_capture_files(options, h80211, caplen);
 }
 
 #define CHECK_END_OF_SCREEN_OR_GOTO(nlines, screen_height, where)              \
