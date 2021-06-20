@@ -3171,7 +3171,8 @@ static bool parse_control_frame(struct local_options * const options,
 			mac_address namac;
 			uint8_t const * p = h80211 + 4;
 
-			while (p <= h80211 + 16 && (p + sizeof namac) <= data_end)
+			while ((uintptr_t) p <= adds_uptr((uintptr_t) h80211, 16)
+				   && (p + sizeof namac) <= data_end)
 			{
 				MAC_ADDRESS_COPY(&namac, (mac_address *) p);
 
@@ -3535,7 +3536,7 @@ static void dump_print(struct local_options * const options,
 					 ",%4d",
 					 options->interface_data[i].current_frequency);
 
-			strncat(strbuf, buffer, sizeof(strbuf) - strlen(strbuf) - 1);
+			strlcat(strbuf, buffer, sizeof(strbuf));
 		}
 	}
 	else /* Must be channel option. */
@@ -3552,7 +3553,7 @@ static void dump_print(struct local_options * const options,
 					 ",%2d",
 					 options->interface_data[i].current_channel);
 
-			strncat(strbuf, buffer, sizeof(strbuf) - strlen(strbuf) - 1);
+			strlcat(strbuf, buffer, sizeof(strbuf));
 		}
 	}
 
@@ -3614,7 +3615,7 @@ static void dump_print(struct local_options * const options,
 				 lt->tm_min);
 	}
 
-	strncat(strbuf, buffer, (sizeof strbuf - strlen(strbuf) - 1));
+	strlcat(strbuf, buffer, sizeof(strbuf));
 
 	buffer[0] = '\0';
 	if (options->is_berlin)
@@ -3627,19 +3628,17 @@ static void dump_print(struct local_options * const options,
 				 options->maxaps);
 	}
 
-	/* FIXME - Don't use strncat. */
-	strncat(strbuf, buffer, (sizeof strbuf - strlen(strbuf) - 1));
+	strlcat(strbuf, buffer, sizeof(strbuf));
 	buffer[0] = '\0';
 
 	static char const message_field_end[] = "]";
 	static char const message_field_start[] = "[ ";
 
-	strncat(strbuf, message_field_end, sizeof strbuf - strlen(strbuf) - 1);
+	strlcat(strbuf, message_field_end, sizeof(strbuf));
 	if (strlen(options->message) > 0)
 	{
-		strncat(
-			strbuf, message_field_start, sizeof strbuf - strlen(strbuf) - 1);
-		strncat(strbuf, options->message, sizeof strbuf - strlen(strbuf) - 1);
+		strlcat(strbuf, message_field_start, sizeof(strbuf));
+		strlcat(strbuf, options->message, sizeof(strbuf));
 	}
 
 	strbuf[screen_width - 1] = '\0';
@@ -3660,18 +3659,20 @@ static void dump_print(struct local_options * const options,
 	if (options->show_ap)
 	{
 		strbuf[0] = '\0';
-		strcat(strbuf, " BSSID              PWR ");
+		strlcat(strbuf, " BSSID              PWR ", sizeof(strbuf));
 
 		if (options->singlechan)
 		{
-			strcat(strbuf, "RXQ ");
+			strlcat(strbuf, "RXQ ", sizeof(strbuf));
 		}
 
-		strcat(strbuf, " Beacons    #Data, #/s  CH   MB   ENC CIPHER  AUTH ");
+		strlcat(strbuf,
+				" Beacons    #Data, #/s  CH   MB   ENC CIPHER  AUTH ",
+				sizeof(strbuf));
 
 		if (options->show_uptime)
 		{
-			strcat(strbuf, "        UPTIME ");
+			strlcat(strbuf, "        UPTIME ", sizeof(strbuf));
 		}
 
 		if (options->show_wps)
@@ -3703,7 +3704,7 @@ static void dump_print(struct local_options * const options,
 		}
 		else
 		{
-			strcat(strbuf, "ESSID");
+			strlcat(strbuf, "ESSID", sizeof(strbuf));
 
 			if (options->show_manufacturer && (screen_width > (columns_ap - 4)))
 			{
@@ -3930,7 +3931,7 @@ static void dump_print(struct local_options * const options,
 				}
 			}
 
-			strncat(strbuf, " ", sizeof(strbuf) - strlen(strbuf) - 1);
+			strlcat(strbuf, " ", sizeof(strbuf));
 
 			len = strlen(strbuf);
 
@@ -4066,9 +4067,9 @@ static void dump_print(struct local_options * const options,
 	{                                                                          \
 		if (ap_cur->wps.meth & (1u << (bit)))                                  \
 		{                                                                      \
-			if (sep) strcat(tbuf, ",");                                        \
+			if (sep) strlcat(tbuf, ",", sizeof(tbuf));                         \
 			sep = 1;                                                           \
-			strncat(tbuf, (name), (64 - strlen(tbuf) - 1));                    \
+			strlcat(tbuf, (name), sizeof(tbuf));                               \
 		}                                                                      \
 	} while (0)
 								T(0u, "USB"); // USB method
