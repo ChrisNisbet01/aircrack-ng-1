@@ -1,4 +1,5 @@
 #include "ubus.h"
+#include "ubus_server.h"
 #include "debug.h"
 
 #include <libubox/blobmsg.h>
@@ -12,6 +13,8 @@ struct ubus_state_st
     char const * ubus_path;
     bool connected;
     struct uloop_timeout retry;
+
+    ubus_server_context_st * server_context;
 };
 
 
@@ -51,7 +54,10 @@ ubus_connection_lost(struct ubus_context * const ctx)
 }
 
 struct ubus_state_st *
-ubus_initialise(char const * const path)
+ubus_initialise(
+    char const * const path,
+    struct ap_list_head * const ap_list,
+    struct sta_list_head * const sta_list)
 {
     bool success;
     struct ubus_state_st * state = calloc(1, sizeof *state);
@@ -77,6 +83,17 @@ ubus_initialise(char const * const path)
 
     ubus_add_uloop(&state->ubus_ctx);
 
+    state->server_context =
+        ubus_server_initialise(&state->ubus_ctx,
+                               ap_list,
+                               sta_list);
+    if (state->server_context == NULL)
+    {
+        perror("failed to initialise UBUS server");
+        success = false;
+        goto done;
+    }
+
     success = true;
 
 done:
@@ -96,6 +113,8 @@ ubus_done(struct ubus_state_st * const state)
     {
         goto done;
     }
+
+    ubus_server_destroy(state->server_context);
 
     uloop_timeout_cancel(&state->retry);
 

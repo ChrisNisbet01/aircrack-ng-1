@@ -6848,13 +6848,17 @@ static bool do_ubus(struct local_options * const options)
 {
 	bool had_error;
 
-	options->ubus.state = ubus_initialise(options->ubus.path);
+	options->ubus.state =
+		ubus_initialise(options->ubus.path,
+						&options->ap_list,
+						&options->sta_list);
 	if (options->ubus.state == NULL)
 	{
 		perror("failed to initialise UBUS");
 		had_error = true;
 		goto done;
 	}
+
 	options->ubus.refresh.cb = ubus_refresh_cb;
 	uloop_timeout_set(&options->ubus.refresh, REFRESH_RATE / 1000);
 
@@ -6917,6 +6921,7 @@ static bool do_ubus(struct local_options * const options)
 	}
 
 	uloop_run();
+
 	ubus_done(options->ubus.state);
 	uloop_done();
 
